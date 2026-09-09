@@ -9,6 +9,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -75,20 +76,31 @@ func APIAdminUpdate(ctx *gin.Context) {
 
 // APIGenShortUrl Generate new short url
 func APIGenShortUrl(ctx *gin.Context) {
-	url := ctx.PostForm("dest_url")
-	memo := ctx.PostForm("memo")
+	url := strings.TrimSpace(ctx.PostForm("dest_url"))
+	memo := strings.TrimSpace(ctx.PostForm("memo"))
 	strOpenType := ctx.PostForm("open_type")
 	openType, err := strconv.Atoi(strOpenType)
 	if err != nil {
 		openType = int(core.OpenInAll)
 	}
 
-	if utils.EmptyString(strings.TrimSpace(url)) {
-		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest("dest_url 不能为空"))
+	dests, err := parseDestinations(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
 		return
 	}
 
-	res, err := service.GenerateShortUrl(strings.TrimSpace(url), strings.TrimSpace(memo), openType)
+	// dest_url 未提供时，取第一个目标地址作为主目标（用于生成短码与默认跳转）
+	if utils.EmptyString(url) && len(dests) > 0 {
+		url = dests[0].DestUrl
+	}
+
+	if utils.EmptyString(url) {
+		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest("dest_url 不能为空（或提供 destinations 参数）"))
+		return
+	}
+
+	res, err := service.GenerateShortUrlWithDests(url, memo, openType, dests)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
 		return
@@ -98,6 +110,34 @@ func APIGenShortUrl(ctx *gin.Context) {
 		"short_url": fmt.Sprintf("%s%s", utils.AppConfig.UrlPrefix, res),
 	}
 	ctx.JSON(http.StatusOK, core.ResultJsonSuccessWithData(json))
+}
+
+// parseDestinations 解析多目标地址参数 destinations（JSON 数组形式）
+//
+//	示例：destinations=[{"label":"pc","dest_url":"https://www.example.com"},{"label":"mobile","dest_url":"https://m.example.com"}]
+func parseDestinations(ctx *gin.Context) ([]core.ShortUrlDest, error) {
+	raw := strings.TrimSpace(ctx.PostForm("destinations"))
+	if utils.EmptyString(raw) {
+		return nil, nil
+	}
+	var items []struct {
+		Label   string `json:"label"`
+		DestUrl string `json:"dest_url"`
+	}
+	if err := json.Unmarshal([]byte(raw), &items); err != nil {
+		return nil, utils.RaiseError("destinations 参数不是合法的 JSON 数组")
+	}
+	dests := make([]core.ShortUrlDest, 0, len(items))
+	for _, it := range items {
+		dests = append(dests, core.ShortUrlDest{
+			Label:   strings.TrimSpace(it.Label),
+			DestUrl: strings.TrimSpace(it.DestUrl),
+		})
+	}
+	if err := core.ValidateShortUrlDests(dests); err != nil {
+		return nil, err
+	}
+	return dests, nil
 }
 
 // APIUrlInfo Get Short Url Stat Info.

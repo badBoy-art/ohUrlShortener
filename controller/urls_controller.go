@@ -52,58 +52,61 @@ func ShortUrlDetail(c *gin.Context) {
 		return
 	}
 
+	// 请求头 X-Dest-Label 指定目标地址标识；未携带或未命中时回退主目标地址
+	destUrl := memUrl.ResolveDestUrl(c.GetHeader(core.DestLabelHeader))
+
 	ua := c.Request.UserAgent()
 	switch ot := memUrl.OpenType; ot {
 	case core.OpenInAndroid:
 		if utils.IsAndroid(ua) {
-			redirectSuccess(url, memUrl.DestUrl, c)
+			redirectSuccess(url, destUrl, c)
 		} else {
 			redirectFail(c)
 		}
 	case core.OpenInDingTalk:
 		if utils.IsDingTalk(ua) {
-			redirectSuccess(url, memUrl.DestUrl, c)
+			redirectSuccess(url, destUrl, c)
 		} else {
 			redirectFail(c)
 		}
 	case core.OpenInChrome:
 		if utils.IsChrome(ua) {
-			redirectSuccess(url, memUrl.DestUrl, c)
+			redirectSuccess(url, destUrl, c)
 		} else {
 			redirectFail(c)
 		}
 	case core.OpenInIPad:
 		if utils.IsIPad(ua) {
-			redirectSuccess(url, memUrl.DestUrl, c)
+			redirectSuccess(url, destUrl, c)
 		} else {
 			redirectFail(c)
 		}
 	case core.OpenInIPhone:
 		if utils.IsIPhone(ua) {
-			redirectSuccess(url, memUrl.DestUrl, c)
+			redirectSuccess(url, destUrl, c)
 		} else {
 			redirectFail(c)
 		}
 	case core.OpenInSafari:
 		if utils.IsSafari(ua) {
-			redirectSuccess(url, memUrl.DestUrl, c)
+			redirectSuccess(url, destUrl, c)
 		} else {
 			redirectFail(c)
 		}
 	case core.OpenInWeChat:
 		if utils.IsWeChatUA(ua) {
-			redirectSuccess(url, memUrl.DestUrl, c)
+			redirectSuccess(url, destUrl, c)
 		} else {
 			redirectFail(c)
 		}
 	case core.OpenInFirefox:
 		if utils.IsFirefox(ua) {
-			redirectSuccess(url, memUrl.DestUrl, c)
+			redirectSuccess(url, destUrl, c)
 		} else {
 			redirectFail(c)
 		}
 	case core.OpenInAll:
-		redirectSuccess(url, memUrl.DestUrl, c)
+		redirectSuccess(url, destUrl, c)
 	}
 }
 

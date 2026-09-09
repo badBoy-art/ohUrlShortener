@@ -4,6 +4,7 @@
 
 1. 支持 Docker One Step Start 部署启动
 1. 支持短链接生产、查询、存储、302转向
+1. 支持多目标短链接：一个短码对应多个目标地址，访问时通过 `X-Dest-Label` 请求头选择，完全兼容旧数据
 1. 支持访问日志查询、访问量统计、独立IP数统计
 1. 支持 HTTP API 方式新建短链接、禁用/启用短链接、查看短链接统计信息、管理员设置
 1. 支持访问日志导出，方便线下分析
@@ -104,6 +105,12 @@ func PasswordBase58Hash(password string) (string, error) {
 ```
 
 亦可参照 `storage/users_storage_test.go` 中的 `TestNewUser()` 方法
+
+## 多目标短链接
+
+一个短码可以对应多个目标地址（例如 PC 端与移动端各一个），每个目标地址在创建时通过 `label` 标识。创建时提交 `destinations` 参数，访问时通过请求头 `X-Dest-Label: {label}` 选择目标地址；未携带请求头或 `label` 未命中时，回退到主目标地址 `dest_url`，旧数据（单一 dest_url 的短链接）行为不变。详细用法请参阅 [ohUrlShortener HTTP API](API.md)。
+
+> 老版本数据库升级：需要执行一次 [`sql/add_short_url_dests.sql`](sql/add_short_url_dests.sql) 迁移脚本新增 `short_url_dests` 表；全新部署（`structure.sql` 初始化）无需额外操作。
 
 ## HTTP API 支持
 

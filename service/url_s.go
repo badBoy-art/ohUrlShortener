@@ -26,6 +26,12 @@ import (
 // 并将其可以 key-> value 形式存入 Redis 中
 func ReloadUrls() (bool, error) {
 
+	// 多目标地址一次性装载，避免逐条短链接查询
+	destsMap, err := loadDestsMap()
+	if err != nil {
+		log.Println(err)
+	}
+
 	//Get total count to calculate page size
 	count, err := storage.GetUrlCount()
 	if err != nil {
@@ -46,7 +52,7 @@ func ReloadUrls() (bool, error) {
 			go func() {
 				for _, url := range urls {
 					if url.Valid {
-						mu := core.MemShortUrl{DestUrl: url.DestUrl, OpenType: url.OpenType}
+						mu := memShortUrl(url.DestUrl, url.OpenType, destsMap[url.ShortUrl])
 						res, err := json.Marshal(mu)
 						if err != nil {
 							log.Println(err)
@@ -63,6 +69,27 @@ func ReloadUrls() (bool, error) {
 		}
 	}
 	return true, nil
+}
+
+// loadDestsMap 装载全部多目标地址并按 short_url 分组；老库未建表时返回空 map
+func loadDestsMap() (map[string]map[string]string, error) {
+	result := make(map[string]map[string]string)
+	dests, err := storage.FindAllShortUrlDests()
+	if err != nil {
+		return result, err
+	}
+	for _, d := range dests {
+		if result[d.ShortUrl] == nil {
+			result[d.ShortUrl] = make(map[string]string)
+		}
+		result[d.ShortUrl][d.Label] = d.DestUrl
+	}
+	return result, nil
+}
+
+// memShortUrl 组装写入 Redis 的短链接信息
+func memShortUrl(destUrl string, openType core.OpenType, dests map[string]string) core.MemShortUrl {
+	return core.MemShortUrl{DestUrl: destUrl, OpenType: openType, Dests: dests}
 }
 
 // Search4ShortUrl
@@ -98,8 +125,16 @@ func GetPagesShortUrls(url string, page int, size int) ([]core.ShortUrl, error) 
 
 // GenerateShortUrl
 //
-// 生成短链接
+// 生成短链接（单目标地址，兼容旧调用方）
 func GenerateShortUrl(destUrl string, memo string, openType int) (string, error) {
+	return GenerateShortUrlWithDests(destUrl, memo, openType, nil)
+}
+
+// GenerateShortUrlWithDests
+//
+// 生成短链接；dests 为多目标地址列表（可为空）。
+// 短码基于主目标地址 destUrl 生成，其余目标地址通过 label 选择访问。
+func GenerateShortUrlWithDests(destUrl string, memo string, openType int, dests []core.ShortUrlDest) (string, error) {
 	shortUrl, err := core.GenerateShortLink(destUrl)
 	if err != nil {
 		log.Println(err)
@@ -136,7 +171,14 @@ func GenerateShortUrl(destUrl string, memo string, openType int) (string, error)
 		return "", utils.RaiseError("内部错误，请联系管理员")
 	}
 
-	mu := core.MemShortUrl{DestUrl: url.DestUrl, OpenType: url.OpenType}
+	if len(dests) > 0 {
+		if err := storage.InsertShortUrlDests(shortUrl, dests); err != nil {
+			log.Println(err)
+			return "", utils.RaiseError("多目标地址写入失败，请确认已执行 sql/add_short_url_dests.sql 迁移脚本")
+		}
+	}
+
+	mu := memShortUrl(url.DestUrl, url.OpenType, destsToMap(dests))
 	res, err := json.Marshal(mu)
 	if err != nil {
 		return "", utils.RaiseError("内部错误，请联系管理员")
@@ -148,6 +190,18 @@ func GenerateShortUrl(destUrl string, memo string, openType int) (string, error)
 	}
 
 	return shortUrl, nil
+}
+
+// destsToMap 将多目标地址列表转换为 label -> dest_url 映射
+func destsToMap(dests []core.ShortUrlDest) map[string]string {
+	if len(dests) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(dests))
+	for _, d := range dests {
+		result[d.Label] = d.DestUrl
+	}
+	return result
 }
 
 // ChangeState
@@ -171,7 +225,11 @@ func ChangeState(shortUrl string, enable bool) (bool, error) {
 	}
 
 	if enable {
-		mu := core.MemShortUrl{DestUrl: found.DestUrl, OpenType: found.OpenType}
+		dests, err := loadShortUrlDests(shortUrl)
+		if err != nil {
+			log.Println(err)
+		}
+		mu := memShortUrl(found.DestUrl, found.OpenType, dests)
 		res, err := json.Marshal(mu)
 		if err != nil {
 			return false, utils.RaiseError("内部错误，请联系管理员")
@@ -182,6 +240,15 @@ func ChangeState(shortUrl string, enable bool) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// loadShortUrlDests 查询指定短链接的多目标地址映射；无记录或查询失败时返回 nil
+func loadShortUrlDests(shortUrl string) (map[string]string, error) {
+	dests, err := storage.FindShortUrlDests(shortUrl)
+	if err != nil {
+		return nil, err
+	}
+	return destsToMap(dests), nil
 }
 
 // DeleteUrlAndAccessLogs 删除短链接以及对应的访问日志

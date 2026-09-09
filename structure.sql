@@ -16,6 +16,20 @@ CREATE TABLE public.short_urls (
 	CONSTRAINT short_urls_un UNIQUE (short_url)
 );
 
+-- Multi-destination table: one short_url can map to multiple dest_urls,
+-- each identified by a label. dest_url in short_urls remains the primary
+-- destination for links created before this feature (old data).
+CREATE TABLE public.short_url_dests (
+  id serial4 NOT NULL,
+  short_url varchar(200) NOT NULL,
+  label varchar(64) NOT NULL,
+  dest_url text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT short_url_dests_pk PRIMARY KEY (id),
+  CONSTRAINT short_url_dests_un UNIQUE (short_url, label)
+);
+CREATE INDEX short_url_dests_short_url_idx ON public.short_url_dests (short_url);
+
 CREATE TABLE public.access_logs (
 	id serial4 NOT NULL,
 	short_url varchar(200) NOT NULL,

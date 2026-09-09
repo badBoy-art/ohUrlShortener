@@ -13,8 +13,10 @@
 ### 1. 新增短链接 `POST /api/url`
 
 接受参数：
-1. `dest_url` 目标链接，必填
+1. `dest_url` 主目标链接，选填（与 `destinations` 至少提供一个；两者都提供时以 `dest_url` 为主目标）
 2. `memo` 备注信息，选填
+3. `open_type` 打开方式（0-8），选填
+4. `destinations` 多目标地址列表（JSON 数组），选填，最多 20 个；每个元素包含 `label`（目标标识，最长64字符，唯一）与 `dest_url`（目标链接，最长2048字符）
 
 请求示例：
 
@@ -25,6 +27,27 @@ curl --request POST \
   --header 'Content-Type: application/x-www-form-urlencoded' \
   --data dest_url=http://localhost:9092/admin/dashboard \
   --data memo=dashboard
+```
+
+多目标短链接示例（PC 与移动端各一个目标地址）：
+
+```shell
+curl --request POST \
+  --url http://localhost:9092/api/url \
+  --header 'Authorization: Bearer EZ2zQjC3fqbkvtggy9p2YaJiLwx1kKPTJxvqVzowtx6t' \
+  --header 'Content-Type: application/x-www-form-urlencoded' \
+  --data-urlencode 'dest_url=https://www.example.com' \
+  --data-urlencode 'destinations=[{"label":"pc","dest_url":"https://www.example.com"},{"label":"mobile","dest_url":"https://m.example.com"}]' \
+  --data memo=dashboard
+```
+
+也可以不传 `dest_url`，此时取 `destinations` 中第一个目标地址作为主目标（用于生成短码与默认跳转）：
+
+```shell
+curl --request POST \
+  --url http://localhost:9092/api/url \
+  --header 'Authorization: Bearer EZ2zQjC3fqbkvtggy9p2YaJiLwx1kKPTJxvqVzowtx6t' \
+  --data-urlencode 'destinations=[{"label":"pc","dest_url":"https://www.example.com"},{"label":"mobile","dest_url":"https://m.example.com"}]'
 ```
 
 返回结果：
@@ -39,6 +62,18 @@ curl --request POST \
 	},
 	"date": "2022-04-10T21:31:29.36559+08:00"
 }
+```
+
+#### 多目标短链接访问方式
+
+访问短链接时通过请求头 `X-Dest-Label` 指定目标地址标识（即创建时的 `label`）；未携带请求头或标识未命中时，回退到主目标地址 `dest_url`（旧数据同样如此，完全兼容）：
+
+```shell
+# 302 跳转到 mobile 对应的目标地址
+curl -i --header 'X-Dest-Label: mobile' http://localhost:9091/BUUtpbGp
+
+# 不带请求头，跳转到主目标地址
+curl -i http://localhost:9091/BUUtpbGp
 ```
 
 ### 2. 禁用/启用 短链接 `PUT /api/url/:url/change_state`
