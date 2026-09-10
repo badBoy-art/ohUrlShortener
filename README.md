@@ -137,6 +137,8 @@ App 等可控客户端可通过以下两个自设请求头精确选择目标（�
 
 Client Hints 识别规则：`iPadOS` 平台 → `tablet`；`iOS` 平台在 `Sec-CH-UA-Mobile: ?0`（iPad 桌面模式）或型号含 iPad 时 → `tablet`，否则 → `mobile`；`Android` → `mobile`（平板与手机无法区分）；`macOS`/`Windows`/`Linux`/`Chrome OS` → `pc`（型号含 iPad 时仍判 `tablet`，覆盖 iPadOS 桌面模式上报 `macOS` 的情况）。
 
+> 服务端在短链 302 重定向响应（含密码验证成功后的 302）中返回 `Accept-CH: Sec-CH-UA-Mobile, Sec-CH-UA-Platform, Sec-CH-UA-Model` 响应头，声明本服务需要的 Client Hints。Chromium 系浏览器收到声明后，会在后续访问该站点的请求中自动携带 `Sec-CH-UA-*` 请求头（仅限 HTTPS 安全上下文，localhost 亦视为安全上下文）；首次访问、HTTP 环境及不支持 Client Hints 的浏览器（Safari/Firefox）自动回退 User-Agent 识别，无需额外处理。
+
 创建多目标短链时按下列 label 约定即可覆盖六类常见场景：
 
 | 访问场景 | 匹配依据 | label 建议 |

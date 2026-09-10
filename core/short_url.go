@@ -59,6 +59,13 @@ const (
 	SecCHUAModelHeader = "Sec-CH-UA-Model"
 )
 
+// Accept-CH 响应头：声明本服务需要的 Client Hints，
+// 浏览器收到后会在后续请求中携带 Sec-CH-UA-* 请求头
+const (
+	AcceptCHHeader = "Accept-CH"
+	AcceptCHValue  = "Sec-CH-UA-Mobile, Sec-CH-UA-Platform, Sec-CH-UA-Model"
+)
+
 // 多目标地址数量与字段长度限制
 const (
 	MaxDestCount    = 20
@@ -68,13 +75,13 @@ const (
 
 // ShortUrl 短链接
 type ShortUrl struct {
-	ID        int64          `db:"id" json:"id"`
-	ShortUrl  string         `db:"short_url" json:"short_url"`
-	DestUrl   string         `db:"dest_url" json:"desc_url"`
-	CreatedAt time.Time      `db:"created_at" json:"created_at"`
-	Valid     bool           `db:"is_valid" json:"is_valid"`
-	Memo      sql.NullString `db:"memo" json:"memo"`
-	OpenType  OpenType       `db:"open_type" json:"open_type"`
+	ID        int64          `db:"id"`
+	ShortUrl  string         `db:"short_url"`
+	DestUrl   string         `db:"dest_url"`
+	CreatedAt time.Time      `db:"created_at"`
+	Valid     bool           `db:"is_valid"`
+	Memo      sql.NullString `db:"memo"`
+	OpenType  OpenType       `db:"open_type"`
 }
 
 // ShortUrlDest 多目标短链接中的一条目标地址，label 为访问时用于选择的标识

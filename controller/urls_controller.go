@@ -112,6 +112,8 @@ func ShortUrlDetail(c *gin.Context) {
 }
 
 func redirectSuccess(shortUrl, destUrl string, ctx *gin.Context) {
+	// 声明本服务需要的 Client Hints，浏览器在后续请求中携带 Sec-CH-UA-*（UA 识别兜底不受影响）
+	ctx.Header(core.AcceptCHHeader, core.AcceptCHValue)
 	ctx.Redirect(http.StatusFound, destUrl)
 	go service.NewAccessLog(shortUrl, ctx.ClientIP(), ctx.Request.UserAgent(), ctx.Request.Referer())
 }
