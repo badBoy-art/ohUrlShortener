@@ -118,6 +118,28 @@ func PasswordBase58Hash(password string) (string, error) {
 > 浏览器默认不携带 `X-Client-Type` / `X-Platform`，因此浏览器场景靠 User-Agent 区分 `pc` / `mobile` / `tablet`；App 场景由客户端自行设置上述两个请求头（值需与创建时的 label 一致），可精确区分到「安卓 App / iOS App / 平板应用」。
 > 注意：Android 平板与 Android 手机的 User-Agent 无法区分，平板应用请通过 `X-Platform` 标识。
 
+### 请求头说明
+
+App 等可控客户端可通过以下两个自设请求头精确选择目标（浏览器不会携带，浏览器场景自动落入 User-Agent 三档）：
+
+| 请求头 | 用途 | 示例取值 | 设置方 |
+|---|---|---|---|
+| `X-Client-Type` | 客户端类型标识，优先级最高 | `app`、`wechat`、`dingtalk` | App 等客户端自行设置 |
+| `X-Platform` | 客户端平台标识 | `android`、`ios`、`ipad` | App 等客户端自行设置 |
+
+创建多目标短链时按下列 label 约定即可覆盖六类常见场景：
+
+| 访问场景 | 匹配依据 | label 建议 |
+|---|---|---|
+| 安卓 App | `X-Client-Type` / `X-Platform` | `app` / `android` |
+| iOS App | `X-Client-Type` / `X-Platform` | `app` / `ios` |
+| 平板应用 | `X-Platform`（Android 平板 UA 与手机无法区分，必须携带） | `ipad` |
+| PC 网页 | User-Agent 自动识别 | `pc` |
+| 手机 H5 | User-Agent 自动识别 | `mobile` |
+| 平板网页 | User-Agent 自动识别（iPad / iPadOS 13+ 桌面模式） | `tablet` |
+
+候选标识按优先级依次尝试：`X-Client-Type` 未命中时继续尝试 `X-Platform`，再未命中按 User-Agent 三档匹配，全部未命中回退主目标地址。
+
 详细用法请参阅 [ohUrlShortener HTTP API](API.md)。
 
 > 老版本数据库升级：需要执行一次 [`sql/add_short_url_dests.sql`](sql/add_short_url_dests.sql) 迁移脚本新增 `short_url_dests` 表；全新部署（`structure.sql` 初始化）无需额外操作。
