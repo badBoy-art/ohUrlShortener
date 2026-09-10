@@ -24,23 +24,26 @@ const (
 )
 
 func IsAndroid(ua string) bool {
-	regex := regexp.MustCompile(`(?i)Android\/[\d.]+`)
+	// 兼容新旧格式：Android/4.1.2（旧）与 Android 14（新）
+	regex := regexp.MustCompile(`(?i)Android[\/ ][\d.]+`)
 	return regex.MatchString(ua)
 }
 
 func IsIPhone(ua string) bool {
-	regex := regexp.MustCompile(`(?i)iPhone\/[\d.]+`)
+	// 兼容新旧格式：iPhone/12.1（旧）与 iPhone; CPU iPhone OS 17_5（新）
+	regex := regexp.MustCompile(`(?i)iPhone[\/;]`)
 	return regex.MatchString(ua)
 }
 
 func IsIPad(ua string) bool {
-	regex := regexp.MustCompile(`(?i)iPad\/[\d.]+`)
+	// 兼容新旧格式：iPad/17.0（旧）与 iPad; CPU OS 17_5（新）
+	regex := regexp.MustCompile(`(?i)iPad[\/;]`)
 	return regex.MatchString(ua)
 }
 
 func IsTablet(ua string) bool {
-	// iPad 原生 UA，或 iPadOS 13+ 桌面模式 UA（Macintosh 平台 + Mobile 标记）
-	regex := regexp.MustCompile(`(?i)(iPad\/[\d.]+|Macintosh.*Mobile\/[\d.]+)`)
+	// iPad 原生 UA（新旧格式），或 iPadOS 13+ 桌面模式 UA（Macintosh 平台 + Mobile 标记）
+	regex := regexp.MustCompile(`(?i)(iPad[\/;]|Macintosh.*Mobile\/[\d.]+)`)
 	return regex.MatchString(ua)
 }
 

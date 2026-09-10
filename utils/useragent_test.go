@@ -97,9 +97,12 @@ func TestDeviceTierFromUA(t *testing.T) {
 		ua   string
 		want DeviceTier
 	}{
-		{name: "android", ua: "Mozilla/5.0 (Linux; Android/14; Pixel 8) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36", want: DeviceTierMobile},
-		{name: "iphone", ua: "Mozilla/5.0 (iPhone/17.0; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1", want: DeviceTierMobile},
-		{name: "ipad", ua: "Mozilla/5.0 (iPad/17.0; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1", want: DeviceTierTablet},
+		{name: "android old format", ua: "Mozilla/5.0 (Linux; Android/14; Pixel 8) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36", want: DeviceTierMobile},
+		{name: "android modern format", ua: "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36", want: DeviceTierMobile},
+		{name: "iphone old format", ua: "Mozilla/5.0 (iPhone/17.0; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1", want: DeviceTierMobile},
+		{name: "iphone modern format", ua: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1", want: DeviceTierMobile},
+		{name: "ipad old format", ua: "Mozilla/5.0 (iPad/17.0; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1", want: DeviceTierTablet},
+		{name: "ipad modern format", ua: "Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1", want: DeviceTierTablet},
 		{name: "ipados desktop mode", ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/13.0 Safari/605.1.15 Mobile/15E148", want: DeviceTierTablet},
 		{name: "pc", ua: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0 Safari/537.36", want: DeviceTierPC},
 		{name: "empty", ua: "", want: DeviceTierPC},
