@@ -48,6 +48,17 @@ const (
 	LabelTablet = "tablet"
 )
 
+// 浏览器 Client Hints 请求头（Chromium 系浏览器在站点声明 Accept-CH 后发送，
+// Safari 暂不支持），优先用于设备类型识别，User-Agent 识别作为兜底
+const (
+	// SecCHUAMobileHeader 是否为移动设备（?1 / ?0）
+	SecCHUAMobileHeader = "Sec-CH-UA-Mobile"
+	// SecCHUAPlatformHeader 平台标识（如 "iOS"、"Android"、"macOS"）
+	SecCHUAPlatformHeader = "Sec-CH-UA-Platform"
+	// SecCHUAModelHeader 设备型号（如 "iPhone 15"、"Pixel 8"）
+	SecCHUAModelHeader = "Sec-CH-UA-Model"
+)
+
 // 多目标地址数量与字段长度限制
 const (
 	MaxDestCount    = 20

@@ -117,7 +117,7 @@ func redirectSuccess(shortUrl, destUrl string, ctx *gin.Context) {
 }
 
 // destLabels 组装目标地址标识的匹配优先级：
-// X-Client-Type > X-Platform > User-Agent 自动识别（pc/mobile/tablet）
+// X-Client-Type > X-Platform > Client Hints / User-Agent 自动识别（pc/mobile/tablet）
 // 前两者由 App 等客户端自行设置（浏览器不会携带），命中即返回对应目标地址
 func destLabels(c *gin.Context) []string {
 	labels := []string{}
@@ -127,20 +127,30 @@ func destLabels(c *gin.Context) []string {
 	if v := c.GetHeader(core.PlatformHeader); !utils.EmptyString(v) {
 		labels = append(labels, v)
 	}
-	labels = append(labels, deviceLabel(c.Request.UserAgent()))
+	labels = append(labels, deviceLabel(c))
 	return labels
 }
 
-// deviceLabel 根据浏览器默认携带的 User-Agent 识别设备类型，返回三档标识：
-// tablet（iPad 及 iPadOS 13+ 桌面模式）/ mobile（Android、iPhone）/ pc（其余）
-func deviceLabel(ua string) string {
-	if utils.IsTablet(ua) {
+// deviceLabel 优先根据浏览器 Client Hints（Sec-CH-UA-*）识别设备类型，
+// 未携带或信息不足时回退到 User-Agent 正则识别，返回三档标识：
+// tablet（iPad / iPadOS 桌面模式）/ mobile（Android、iPhone）/ pc（其余）
+func deviceLabel(c *gin.Context) string {
+	tier := utils.DeviceTierFromHints(
+		c.GetHeader(core.SecCHUAMobileHeader),
+		c.GetHeader(core.SecCHUAPlatformHeader),
+		c.GetHeader(core.SecCHUAModelHeader),
+	)
+	if tier == utils.DeviceTierUnknown {
+		tier = utils.DeviceTierFromUA(c.Request.UserAgent())
+	}
+	switch tier {
+	case utils.DeviceTierTablet:
 		return core.LabelTablet
-	}
-	if utils.IsAndroid(ua) || utils.IsIPhone(ua) {
+	case utils.DeviceTierMobile:
 		return core.LabelMobile
+	default:
+		return core.LabelPC
 	}
-	return core.LabelPC
 }
 
 func redirectFail(ctx *gin.Context) {
