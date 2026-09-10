@@ -160,7 +160,7 @@ api.PUT("/url/:url/change_state", controller.APIUpdateUrl)
 
 ## 短链接在应用启动时会存入 Redis 中
 
-所有短链接再系统启动时会以 `Key(short_url) -> Value(JSON{original_url,open_type})` 的形式存储在 Redis 中。
+所有短链接在系统启动时会以 `Key(short_url) -> Value(JSON{dest_url,open_type,dests})` 的形式存储在 Redis 中，其中 `dests` 为多目标地址的 `label -> dest_url` 映射（目标选择逻辑见上文「多目标短链接」）。
 
 ### 1. 为什么要这么做？  
 
