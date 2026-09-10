@@ -4,7 +4,7 @@
 
 1. 支持 Docker One Step Start 部署启动
 1. 支持短链接生产、查询、存储、302转向
-1. 支持多目标短链接：一个短码对应多个目标地址，访问时通过 `X-Dest-Label` 请求头选择，完全兼容旧数据
+1. 支持多目标短链接：一个短码对应多个目标地址，访问时根据客户端请求头与 User-Agent 自动选择（PC/移动/平板/App），完全兼容旧数据
 1. 支持访问日志查询、访问量统计、独立IP数统计
 1. 支持 HTTP API 方式新建短链接、禁用/启用短链接、查看短链接统计信息、管理员设置
 1. 支持访问日志导出，方便线下分析
@@ -108,7 +108,17 @@ func PasswordBase58Hash(password string) (string, error) {
 
 ## 多目标短链接
 
-一个短码可以对应多个目标地址（例如 PC 端与移动端各一个），每个目标地址在创建时通过 `label` 标识。创建时提交 `destinations` 参数，访问时通过请求头 `X-Dest-Label: {label}` 选择目标地址；未携带请求头或 `label` 未命中时，回退到主目标地址 `dest_url`，旧数据（单一 dest_url 的短链接）行为不变。详细用法请参阅 [ohUrlShortener HTTP API](API.md)。
+一个短码可以对应多个目标地址（例如 PC 网页、手机 H5、平板网页、安卓 App、iOS App 各一个），每个目标地址在创建时通过 `label` 标识。访问时服务端自动选择目标地址，优先级如下：
+
+1. `X-Client-Type` 请求头（App 等客户端自行设置，如 `app`、`wechat`）
+2. `X-Platform` 请求头（App 等客户端自行设置，如 `android`、`ios`、`ipad`）
+3. `User-Agent` 自动识别三档设备类型：平板匹配 `tablet`、Android/iPhone 匹配 `mobile`、其余匹配 `pc`
+4. 未命中时回退到主目标地址 `dest_url`，旧数据（单一 dest_url 的短链接）行为不变
+
+> 浏览器默认不携带 `X-Client-Type` / `X-Platform`，因此浏览器场景靠 User-Agent 区分 `pc` / `mobile` / `tablet`；App 场景由客户端自行设置上述两个请求头（值需与创建时的 label 一致），可精确区分到「安卓 App / iOS App / 平板应用」。
+> 注意：Android 平板与 Android 手机的 User-Agent 无法区分，平板应用请通过 `X-Platform` 标识。
+
+详细用法请参阅 [ohUrlShortener HTTP API](API.md)。
 
 > 老版本数据库升级：需要执行一次 [`sql/add_short_url_dests.sql`](sql/add_short_url_dests.sql) 迁移脚本新增 `short_url_dests` 表；全新部署（`structure.sql` 初始化）无需额外操作。
 

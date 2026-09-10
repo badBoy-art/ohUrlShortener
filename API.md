@@ -66,14 +66,30 @@ curl --request POST \
 
 #### 多目标短链接访问方式
 
-访问短链接时通过请求头 `X-Dest-Label` 指定目标地址标识（即创建时的 `label`）；未携带请求头或标识未命中时，回退到主目标地址 `dest_url`（旧数据同样如此，完全兼容）：
+访问短链接时服务端按以下优先级自动选择目标地址（每个目标的 `label` 即匹配标识）：
+
+1. `X-Client-Type` 请求头：客户端类型标识，由 App 等客户端自行设置（如 `app`、`wechat`）
+2. `X-Platform` 请求头：客户端平台标识，由 App 等客户端自行设置（如 `android`、`ios`、`ipad`）
+3. `User-Agent` 自动识别三档设备类型：平板（iPad 及 iPadOS 13+ 桌面模式）匹配 `tablet`，Android/iPhone 匹配 `mobile`，其余匹配 `pc`
+4. 以上均未命中时，回退到主目标地址 `dest_url`（旧数据同样如此，完全兼容）
+
+浏览器默认不携带 `X-Client-Type` / `X-Platform`，因此浏览器场景建议使用 `pc` / `mobile` / `tablet` 作为 label，靠 User-Agent 自动区分；App 场景则使用与客户端设置的 `X-Client-Type` / `X-Platform` 值一致的 label，可精确区分「安卓 App / iOS App / 平板应用」。注意：Android 平板与手机的 User-Agent 无法区分，平板应用请通过 `X-Platform` 标识。
 
 ```shell
-# 302 跳转到 mobile 对应的目标地址
-curl -i --header 'X-Dest-Label: mobile' http://localhost:9091/BUUtpbGp
+# 浏览器：移动端 UA 自动跳转到 mobile 对应的目标地址
+curl -i --user-agent 'Mozilla/5.0 (Linux; Android/14) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36' \
+  http://localhost:9091/BUUtpbGp
 
-# 不带请求头，跳转到主目标地址
-curl -i http://localhost:9091/BUUtpbGp
+# 浏览器：PC UA 自动跳转到 pc 对应的目标地址
+curl -i --user-agent 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0 Safari/537.36' \
+  http://localhost:9091/BUUtpbGp
+
+# 浏览器：iPad UA 自动跳转到 tablet 对应的目标地址
+curl -i --user-agent 'Mozilla/5.0 (iPad/17.0; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1' \
+  http://localhost:9091/BUUtpbGp
+
+# App：通过 X-Client-Type / X-Platform 选择（值需与创建时的 label 一致）
+curl -i --header 'X-Client-Type: app' --header 'X-Platform: ios' http://localhost:9091/BUUtpbGp
 ```
 
 ### 2. 禁用/启用 短链接 `PUT /api/url/:url/change_state`

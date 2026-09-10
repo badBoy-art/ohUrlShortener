@@ -60,6 +60,37 @@ func TestMemShortUrlResolveDestUrl(t *testing.T) {
 	}
 }
 
+func TestMemShortUrlResolveDestUrlPriority(t *testing.T) {
+	mu := MemShortUrl{
+		DestUrl: "https://primary.example.com",
+		Dests: map[string]string{
+			"app":    "https://app.example.com",
+			"ios":    "https://ios.example.com",
+			"pc":     "https://pc.example.com",
+			"mobile": "https://m.example.com",
+		},
+	}
+	tests := []struct {
+		name   string
+		labels []string
+		want   string
+	}{
+		{name: "first label wins", labels: []string{"app", "ios", "mobile"}, want: "https://app.example.com"},
+		{name: "skip miss then hit", labels: []string{"ipad", "ios", "mobile"}, want: "https://ios.example.com"},
+		{name: "skip empty labels", labels: []string{"", "  ", "mobile"}, want: "https://m.example.com"},
+		{name: "explicit over ua", labels: []string{"pc", "mobile"}, want: "https://pc.example.com"},
+		{name: "all miss falls back to primary", labels: []string{"wechat", "android"}, want: "https://primary.example.com"},
+		{name: "no labels falls back to primary", labels: nil, want: "https://primary.example.com"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := mu.ResolveDestUrl(tt.labels...); got != tt.want {
+				t.Errorf("ResolveDestUrl(%v) = %q, want %q", tt.labels, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidateShortUrlDests(t *testing.T) {
 	valid := []ShortUrlDest{
 		{Label: "pc", DestUrl: "https://pc.example.com"},

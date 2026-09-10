@@ -27,6 +27,12 @@ func IsIPad(ua string) bool {
 	return regex.MatchString(ua)
 }
 
+func IsTablet(ua string) bool {
+	// iPad 原生 UA，或 iPadOS 13+ 桌面模式 UA（Macintosh 平台 + Mobile 标记）
+	regex := regexp.MustCompile(`(?i)(iPad\/[\d.]+|Macintosh.*Mobile\/[\d.]+)`)
+	return regex.MatchString(ua)
+}
+
 func IsWeChatUA(ua string) bool {
 	regex := regexp.MustCompile(`(?i)MicroMessenger\/[\d.]+`)
 	return regex.MatchString(ua)

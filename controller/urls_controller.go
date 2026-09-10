@@ -52,8 +52,9 @@ func ShortUrlDetail(c *gin.Context) {
 		return
 	}
 
-	// 请求头 X-Dest-Label 指定目标地址标识；未携带或未命中时回退主目标地址
-	destUrl := memUrl.ResolveDestUrl(c.GetHeader(core.DestLabelHeader))
+	// 目标地址选择优先级：
+	// App 客户端类型 X-Client-Type > App 平台 X-Platform > User-Agent 自动识别（pc/mobile/tablet） > 主目标地址
+	destUrl := memUrl.ResolveDestUrl(destLabels(c)...)
 
 	ua := c.Request.UserAgent()
 	switch ot := memUrl.OpenType; ot {
@@ -113,6 +114,33 @@ func ShortUrlDetail(c *gin.Context) {
 func redirectSuccess(shortUrl, destUrl string, ctx *gin.Context) {
 	ctx.Redirect(http.StatusFound, destUrl)
 	go service.NewAccessLog(shortUrl, ctx.ClientIP(), ctx.Request.UserAgent(), ctx.Request.Referer())
+}
+
+// destLabels 组装目标地址标识的匹配优先级：
+// X-Client-Type > X-Platform > User-Agent 自动识别（pc/mobile/tablet）
+// 前两者由 App 等客户端自行设置（浏览器不会携带），命中即返回对应目标地址
+func destLabels(c *gin.Context) []string {
+	labels := []string{}
+	if v := c.GetHeader(core.ClientTypeHeader); !utils.EmptyString(v) {
+		labels = append(labels, v)
+	}
+	if v := c.GetHeader(core.PlatformHeader); !utils.EmptyString(v) {
+		labels = append(labels, v)
+	}
+	labels = append(labels, deviceLabel(c.Request.UserAgent()))
+	return labels
+}
+
+// deviceLabel 根据浏览器默认携带的 User-Agent 识别设备类型，返回三档标识：
+// tablet（iPad 及 iPadOS 13+ 桌面模式）/ mobile（Android、iPhone）/ pc（其余）
+func deviceLabel(ua string) string {
+	if utils.IsTablet(ua) {
+		return core.LabelTablet
+	}
+	if utils.IsAndroid(ua) || utils.IsIPhone(ua) {
+		return core.LabelMobile
+	}
+	return core.LabelPC
 }
 
 func redirectFail(ctx *gin.Context) {

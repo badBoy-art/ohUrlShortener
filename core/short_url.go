@@ -32,9 +32,21 @@ const (
 	OpenInFirefox
 )
 
-// DestLabelHeader 访问短链接时用于选择目标地址的请求头，
-// 取值与创建短链接时每个目标地址的 label 对应。
-const DestLabelHeader = "X-Dest-Label"
+// 访问短链接时用于选择目标地址的请求头，均由客户端（App 等）自行设置，
+// 浏览器不会携带，因此可作为区分客户端类型的可靠依据
+const (
+	// ClientTypeHeader 客户端类型标识，由 App 等客户端自行设置（如 app/wechat）
+	ClientTypeHeader = "X-Client-Type"
+	// PlatformHeader 客户端平台标识，由 App 等客户端自行设置（如 android/ios/ipad）
+	PlatformHeader = "X-Platform"
+)
+
+// 无上述请求头（如浏览器访问）时，根据 User-Agent 自动识别设备类型所用的标识
+const (
+	LabelPC     = "pc"
+	LabelMobile = "mobile"
+	LabelTablet = "tablet"
+)
 
 // 多目标地址数量与字段长度限制
 const (
@@ -69,10 +81,15 @@ type MemShortUrl struct {
 	Dests    map[string]string `json:"dests,omitempty"`
 }
 
-// ResolveDestUrl 按 label 返回目标地址；label 为空或未命中时回退到主目标地址
-func (m MemShortUrl) ResolveDestUrl(label string) string {
-	if !utils.EmptyString(label) && len(m.Dests) > 0 {
-		if dest, ok := m.Dests[strings.TrimSpace(label)]; ok && !utils.EmptyString(dest) {
+// ResolveDestUrl 按优先级依次尝试给定的目标标识，命中即返回对应目标地址；
+// 全部未命中（或标识为空）时回退到主目标地址
+func (m MemShortUrl) ResolveDestUrl(labels ...string) string {
+	for _, label := range labels {
+		label = strings.TrimSpace(label)
+		if utils.EmptyString(label) {
+			continue
+		}
+		if dest, ok := m.Dests[label]; ok && !utils.EmptyString(dest) {
 			return dest
 		}
 	}
