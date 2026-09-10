@@ -62,7 +62,14 @@
               {{end}}
             </td>
             <td class="center aligned">{{.Valid}}</td>            
-            <td class="center aligned collapsing"><a href="{{.DestUrl}}" target="_blank">打开链接</a></td>                                   
+            <td class="left aligned">
+              <span class="ui mini grey label">默认</span>
+              <a href="{{.DestUrl}}" target="_blank">{{.DestUrl}}</a>
+              {{range $label, $dest := .Dests}}
+              <br/><span class="ui mini teal label">{{$label}}</span>
+              <a href="{{$dest}}" target="_blank">{{$dest}}</a>
+              {{end}}
+            </td>
             <td class="center aligned">
               {{if .Valid}} 
               <a href="javascript:enable_url('{{.ShortUrl}}',false)">禁用</a> 

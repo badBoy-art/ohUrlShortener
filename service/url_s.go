@@ -120,7 +120,36 @@ func GetPagesShortUrls(url string, page int, size int) ([]core.ShortUrl, error) 
 		log.Println(err)
 		return allUrls, utils.RaiseError("内部错误，请联系管理员")
 	}
+	if err := attachShortUrlDests(allUrls); err != nil {
+		log.Println(err)
+	}
 	return allUrls, nil
+}
+
+// attachShortUrlDests 为短链接列表批量附加多目标地址（管理端展示用）；查询失败仅记录日志
+func attachShortUrlDests(urls []core.ShortUrl) error {
+	if len(urls) == 0 {
+		return nil
+	}
+	codes := make([]string, len(urls))
+	for i, u := range urls {
+		codes[i] = u.ShortUrl
+	}
+	dests, err := storage.FindShortUrlDestsByCodes(codes)
+	if err != nil {
+		return err
+	}
+	grouped := make(map[string]map[string]string)
+	for _, d := range dests {
+		if grouped[d.ShortUrl] == nil {
+			grouped[d.ShortUrl] = make(map[string]string)
+		}
+		grouped[d.ShortUrl][d.Label] = d.DestUrl
+	}
+	for i := range urls {
+		urls[i].Dests = grouped[urls[i].ShortUrl]
+	}
+	return nil
 }
 
 // GenerateShortUrl

@@ -82,6 +82,8 @@ type ShortUrl struct {
 	Valid     bool           `db:"is_valid"`
 	Memo      sql.NullString `db:"memo"`
 	OpenType  OpenType       `db:"open_type"`
+	// Dests 多目标地址（label -> dest_url），仅用于管理端展示，不落库
+	Dests map[string]string `db:"-"`
 }
 
 // ShortUrlDest 多目标短链接中的一条目标地址，label 为访问时用于选择的标识

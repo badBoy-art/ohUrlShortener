@@ -61,6 +61,20 @@ func FindShortUrlDests(shortUrl string) ([]core.ShortUrlDest, error) {
 	return found, err
 }
 
+// FindShortUrlDestsByCodes 按短码批量查询多目标地址；老库未建表时返回空列表
+func FindShortUrlDestsByCodes(codes []string) ([]core.ShortUrlDest, error) {
+	found := []core.ShortUrlDest{}
+	if len(codes) == 0 {
+		return found, nil
+	}
+	query := `SELECT * FROM public.short_url_dests WHERE short_url = ANY($1) ORDER BY id`
+	err := DbSelect(query, &found, pq.Array(codes))
+	if isRelationNotExist(err) {
+		return found, nil
+	}
+	return found, err
+}
+
 // FindAllShortUrlDests 查询全部多目标地址（用于启动时将数据装载进 Redis）
 func FindAllShortUrlDests() ([]core.ShortUrlDest, error) {
 	found := []core.ShortUrlDest{}
