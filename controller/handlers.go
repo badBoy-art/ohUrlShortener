@@ -49,7 +49,7 @@ func APIAuthHandler() gin.HandlerFunc {
 		}
 
 		token := fields[1]
-		res, err := validateToken(token)
+		user, res, err := validateToken(token)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusInternalServerError, core.ResultJsonError("Internal error"))
 			return
@@ -60,8 +60,18 @@ func APIAuthHandler() gin.HandlerFunc {
 			return
 		}
 
+		ctx.Set("current_user", user)
 		ctx.Next()
 	}
+}
+
+// currentUser 获取当前登录用户（由鉴权中间件写入 context）
+func currentUser(c *gin.Context) core.User {
+	user, _ := c.Get("current_user")
+	if u, ok := user.(core.User); ok {
+		return u
+	}
+	return core.User{}
 }
 
 // AdminCookieValue Generate cookie value for admin user
@@ -111,6 +121,12 @@ func AdminAuthHandler() gin.HandlerFunc {
 			return
 		}
 
+		if !found.IsAdmin {
+			c.Redirect(http.StatusFound, "/login")
+			c.Next()
+			return
+		}
+
 		cValue, err := AdminCookieValue(found)
 		if err != nil {
 			c.Redirect(http.StatusFound, "/login")
@@ -125,6 +141,7 @@ func AdminAuthHandler() gin.HandlerFunc {
 		}
 
 		c.Set("current_account", found.Account)
+		c.Set("current_user", found)
 		c.Next()
 	} // end of func
 }
@@ -149,17 +166,15 @@ func WebLogFormatHandler(server string) gin.HandlerFunc {
 	}) // end of formatter
 } // end of func
 
-func validateToken(token string) (bool, error) {
-	users, err := storage.FindAllUsers()
+func validateToken(token string) (core.User, bool, error) {
+	user, err := storage.FindUserByPassword(token)
 	if err != nil {
-		return false, err
+		return user, false, err
 	}
 
-	for _, u := range users {
-		if u.Password == token {
-			return true, nil
-		}
+	if user.IsEmpty() {
+		return user, false, nil
 	}
 
-	return false, nil
+	return user, true, nil
 }

@@ -12,6 +12,7 @@ CREATE TABLE public.short_urls (
 	is_valid bool NOT NULL DEFAULT true,	
 	memo text,
 	open_type int8 NOT NULL DEFAULT 0,
+	created_by int4 NOT NULL,
 	CONSTRAINT short_urls_pk PRIMARY KEY (id),
 	CONSTRAINT short_urls_un UNIQUE (short_url)
 );
@@ -49,19 +50,24 @@ CREATE TABLE public.users (
 	password text NOT NULL,			
 	created_at timestamp with time zone NOT NULL DEFAULT NOW(), 
 	is_enable bool NOT NULL DEFAULT true,	 
+	is_admin bool NOT NULL DEFAULT false,
 	CONSTRAINT users_pk PRIMARY KEY (id),
 	CONSTRAINT users_account_un UNIQUE (account)
 );
 
 -- account: ohUrlShortener password: -2aDzm=0(ln_9^1
-INSERT INTO public.users (account, "password") VALUES('ohUrlShortener', 'EZ2zQjC3fqbkvtggy9p2YaJiLwx1kKPTJxvqVzowtx6t');
+INSERT INTO public.users (account, "password", is_admin) VALUES('ohUrlShortener', 'EZ2zQjC3fqbkvtggy9p2YaJiLwx1kKPTJxvqVzowtx6t', true);
+
+ALTER TABLE public.short_urls ADD CONSTRAINT short_urls_created_by_fk
+  FOREIGN KEY (created_by) REFERENCES public.users(id);
+CREATE INDEX short_urls_created_by_idx ON public.short_urls (created_by);
 
 -- Insert new data
-INSERT INTO public.short_urls(short_url, dest_url, created_at, is_valid, memo,open_type) VALUES
-	('AC7VgPE9', 'https://www.gitlink.org.cn/baladiwei/ohurlshortener', NOW(), true, '短链接系统 gitlink 页面',0),
-	('AvTkHZP7', 'https://gitee.com/barat/ohurlshortener', NOW(), true, '短链接系统 gitee 页面',0),
-	('gkT39tb5', 'https://github.com/barats/ohUrlShortener', NOW(), true, '短链接系统 github 页面',0),
-	('9HtCr7YN', 'https://www.ohurls.cn', NOW(), true, 'ohUrlShortener 短链接系统首页',0);
+INSERT INTO public.short_urls(short_url, dest_url, created_at, is_valid, memo,open_type, created_by) VALUES
+	('AC7VgPE9', 'https://www.gitlink.org.cn/baladiwei/ohurlshortener', NOW(), true, '短链接系统 gitlink 页面',0, (SELECT id FROM public.users WHERE account = 'ohUrlShortener')),
+	('AvTkHZP7', 'https://gitee.com/barat/ohurlshortener', NOW(), true, '短链接系统 gitee 页面',0, (SELECT id FROM public.users WHERE account = 'ohUrlShortener')),
+	('gkT39tb5', 'https://github.com/barats/ohUrlShortener', NOW(), true, '短链接系统 github 页面',0, (SELECT id FROM public.users WHERE account = 'ohUrlShortener')),
+	('9HtCr7YN', 'https://www.ohurls.cn', NOW(), true, 'ohUrlShortener 短链接系统首页',0, (SELECT id FROM public.users WHERE account = 'ohUrlShortener'));
 
 
 -- Create table for top25 urls

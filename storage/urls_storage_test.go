@@ -13,10 +13,15 @@ import (
 func TestInsertShortUrls(t *testing.T) {
 	init4Test(t)
 
+	admin, err := FindUserByAccount("ohUrlShortener")
+	if err != nil || admin.IsEmpty() {
+		t.Fatalf("find admin user failed: %v", err)
+	}
+
 	for i := 0; i < 10000; i++ {
 		destUrl := faker.URL()
 		shortUrl, _ := core.GenerateShortLink(destUrl)
-		url := core.ShortUrl{DestUrl: destUrl, ShortUrl: shortUrl, CreatedAt: time.Now(), Valid: true, Memo: sql.NullString{String: destUrl, Valid: true}}
+		url := core.ShortUrl{DestUrl: destUrl, ShortUrl: shortUrl, CreatedAt: time.Now(), Valid: true, Memo: sql.NullString{String: destUrl, Valid: true}, CreatedBy: admin.ID}
 		err := InsertShortUrl(url)
 		if err != nil {
 			t.Error(err)

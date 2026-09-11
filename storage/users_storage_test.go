@@ -9,8 +9,32 @@ import (
 func TestNewUser(t *testing.T) {
 	init4Test(t)
 	// NewUser("ohUrlShortener", "-2aDzm=0(ln_9^1")
-	NewUser("ohUrlShortener1", "-2aDzm=0(ln_9^1")
-	NewUser("ohUrlShortener2", "-2aDzm=0(ln_9^1")
+	NewUser("ohUrlShortener1", "-2aDzm=0(ln_9^1", false)
+	NewUser("ohUrlShortener2", "-2aDzm=0(ln_9^1", true)
+}
+
+func TestFindUserByPassword(t *testing.T) {
+	init4Test(t)
+	// 种子账号：token 即其存储的密码哈希
+	user, err := FindUserByPassword("EZ2zQjC3fqbkvtggy9p2YaJiLwx1kKPTJxvqVzowtx6t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.IsEmpty() || user.Account != "ohUrlShortener" {
+		t.Errorf("FindUserByPassword() = %+v, want ohUrlShortener", user)
+	}
+	if !user.IsAdmin {
+		t.Error("seed account ohUrlShortener should be admin")
+	}
+
+	// 不存在的 token
+	user, err = FindUserByPassword("nonexistent-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !user.IsEmpty() {
+		t.Errorf("FindUserByPassword(nonexistent) = %+v, want empty", user)
+	}
 }
 
 func init4Test(t *testing.T) {

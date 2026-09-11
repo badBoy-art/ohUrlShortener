@@ -11,6 +11,7 @@ package service
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -152,11 +153,25 @@ func attachShortUrlDests(urls []core.ShortUrl) error {
 	return nil
 }
 
+// ErrNoPermission 无权操作该短链接（非创建者且非 admin）
+var ErrNoPermission = errors.New("无权操作该短链接")
+
+// checkOperator 校验操作者权限：admin 放行，否则仅创建者可操作
+func checkOperator(found core.ShortUrl, operator core.User) error {
+	if operator.IsAdmin {
+		return nil
+	}
+	if found.CreatedBy != operator.ID {
+		return ErrNoPermission
+	}
+	return nil
+}
+
 // GenerateShortUrl
 //
 // 生成短链接（单目标地址，兼容旧调用方）
-func GenerateShortUrl(destUrl string, memo string, openType int) (string, error) {
-	return GenerateShortUrlWithDests(destUrl, memo, openType, nil)
+func GenerateShortUrl(destUrl string, memo string, openType int, operator core.User) (string, error) {
+	return GenerateShortUrlWithDests(destUrl, memo, openType, nil, operator)
 }
 
 // GenerateShortUrlWithDests
@@ -164,7 +179,8 @@ func GenerateShortUrl(destUrl string, memo string, openType int) (string, error)
 // 生成短链接；dests 为多目标地址列表（可为空）。
 // 短码基于主目标地址 destUrl 生成，其余目标地址通过 label 选择访问。
 // 同一 destUrl 已生成过短码时幂等返回已有短码；不同 destUrl 哈希碰撞仍报错。
-func GenerateShortUrlWithDests(destUrl string, memo string, openType int, dests []core.ShortUrlDest) (string, error) {
+// 同一 destUrl 被其他用户创建过时返回错误（防止越权复用他人短链）。
+func GenerateShortUrlWithDests(destUrl string, memo string, openType int, dests []core.ShortUrlDest, operator core.User) (string, error) {
 	shortUrl, err := core.GenerateShortLink(destUrl)
 	if err != nil {
 		log.Println(err)
@@ -179,6 +195,9 @@ func GenerateShortUrlWithDests(destUrl string, memo string, openType int, dests 
 
 	if !foundUrl.IsEmpty() {
 		if foundUrl.DestUrl == destUrl {
+			if err := checkOperator(foundUrl, operator); err != nil {
+				return "", utils.RaiseError("该目标地址已由其他用户创建")
+			}
 			// 同一长链接已生成过短码，幂等返回
 			return shortUrl, nil
 		}
@@ -198,10 +217,19 @@ func GenerateShortUrlWithDests(destUrl string, memo string, openType int, dests 
 		Valid:     true,
 		Memo:      nsMemo,
 		OpenType:  core.OpenType(openType),
+		CreatedBy: operator.ID,
 	}
 
 	if err := storage.InsertShortUrl(url); err != nil {
 		if storage.IsUniqueViolation(err) {
+			existing, ferr := storage.FindShortUrl(shortUrl)
+			if ferr != nil || existing.IsEmpty() {
+				log.Println(ferr)
+				return "", utils.RaiseError("内部错误，请联系管理员")
+			}
+			if cerr := checkOperator(existing, operator); cerr != nil {
+				return "", utils.RaiseError("该目标地址已由其他用户创建")
+			}
 			// 并发创建同一长链接，唯一索引兜底，幂等返回
 			return shortUrl, nil
 		}
@@ -246,7 +274,7 @@ func destsToMap(dests []core.ShortUrlDest) map[string]string {
 //
 // 向已有短链接追加多目标地址。必须携带已有短码 shortUrl；
 // label 已存在时返回错误（禁止覆盖既有目标，防止篡改），追加成功后重写该短码的 Redis 缓存。
-func AppendShortUrlDests(shortUrl string, dests []core.ShortUrlDest) (string, error) {
+func AppendShortUrlDests(shortUrl string, dests []core.ShortUrlDest, operator core.User) (string, error) {
 	if len(dests) == 0 {
 		return "", utils.RaiseError("destinations 不能为空")
 	}
@@ -258,6 +286,9 @@ func AppendShortUrlDests(shortUrl string, dests []core.ShortUrlDest) (string, er
 	}
 	if found.IsEmpty() {
 		return "", utils.RaiseError("该短链接不存在")
+	}
+	if err := checkOperator(found, operator); err != nil {
+		return "", err
 	}
 
 	existing, err := loadShortUrlDests(shortUrl)
@@ -300,7 +331,7 @@ func AppendShortUrlDests(shortUrl string, dests []core.ShortUrlDest) (string, er
 // ChangeState
 //
 // 禁用/启用短链接
-func ChangeState(shortUrl string, enable bool) (bool, error) {
+func ChangeState(shortUrl string, enable bool, operator core.User) (bool, error) {
 	found, err := storage.FindShortUrl(shortUrl)
 	if err != nil {
 		return false, utils.RaiseError("内部错误，请联系管理员")
@@ -308,6 +339,10 @@ func ChangeState(shortUrl string, enable bool) (bool, error) {
 
 	if found.IsEmpty() {
 		return false, utils.RaiseError("该短链接不存在")
+	}
+
+	if err := checkOperator(found, operator); err != nil {
+		return false, err
 	}
 
 	found.Valid = enable
@@ -345,7 +380,7 @@ func loadShortUrlDests(shortUrl string) (map[string]string, error) {
 }
 
 // DeleteUrlAndAccessLogs 删除短链接以及对应的访问日志
-func DeleteUrlAndAccessLogs(shortUrl string) error {
+func DeleteUrlAndAccessLogs(shortUrl string, operator core.User) error {
 	found, err := storage.FindShortUrl(shortUrl)
 	if err != nil {
 		return utils.RaiseError("内部错误，请联系管理员")
@@ -353,6 +388,10 @@ func DeleteUrlAndAccessLogs(shortUrl string) error {
 
 	if found.IsEmpty() {
 		return utils.RaiseError("该短链接不存在")
+	}
+
+	if err := checkOperator(found, operator); err != nil {
+		return err
 	}
 
 	err = storage.DeleteShortUrlWithAccessLogs(found)

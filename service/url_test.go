@@ -14,17 +14,29 @@ import (
 	"time"
 
 	"ohurlshortener/core"
+	"ohurlshortener/storage"
 
 	"github.com/bxcodec/faker/v3"
 )
+
+// adminOperator 返回本地库中的 admin 用户（ohUrlShortener）
+func adminOperator(t *testing.T) core.User {
+	t.Helper()
+	admin, err := storage.FindUserByAccount("ohUrlShortener")
+	if err != nil {
+		t.Fatalf("find admin user failed: %v", err)
+	}
+	return admin
+}
 
 func TestGenerateShortUrl(t *testing.T) {
 
 	init4Test(t)
 
+	admin := adminOperator(t)
 	for i := 0; i < 100000; i++ {
 		url := faker.URL()
-		_, err := GenerateShortUrl(url, url+" | memo", 0)
+		_, err := GenerateShortUrl(url, url+" | memo", 0, admin)
 		if err != nil {
 			t.Error(err)
 			continue
@@ -35,20 +47,21 @@ func TestGenerateShortUrl(t *testing.T) {
 func TestGenerateShortUrlIdempotentAndAppendDests(t *testing.T) {
 	init4Test(t)
 
+	admin := adminOperator(t)
 	destUrl := fmt.Sprintf("https://idem.example.com/%d", time.Now().UnixNano())
 	defer func() {
 		code, _ := core.GenerateShortLink(destUrl)
-		_ = DeleteUrlAndAccessLogs(code)
+		_ = DeleteUrlAndAccessLogs(code, admin)
 	}()
 
 	// 首次创建
-	code1, err := GenerateShortUrlWithDests(destUrl, "", 0, nil)
+	code1, err := GenerateShortUrlWithDests(destUrl, "", 0, nil, admin)
 	if err != nil {
 		t.Fatalf("first create failed: %v", err)
 	}
 
 	// 同一长链接重复创建：幂等返回同一短码，且不报错
-	code2, err := GenerateShortUrlWithDests(destUrl, "", 0, nil)
+	code2, err := GenerateShortUrlWithDests(destUrl, "", 0, nil, admin)
 	if err != nil {
 		t.Fatalf("idempotent create failed: %v", err)
 	}
@@ -61,7 +74,7 @@ func TestGenerateShortUrlIdempotentAndAppendDests(t *testing.T) {
 		{Label: "pc", DestUrl: "https://pc.example.com"},
 		{Label: "mobile", DestUrl: "https://m.example.com"},
 	}
-	res, err := AppendShortUrlDests(code1, dests)
+	res, err := AppendShortUrlDests(code1, dests, admin)
 	if err != nil {
 		t.Fatalf("append dests failed: %v", err)
 	}
@@ -73,7 +86,7 @@ func TestGenerateShortUrlIdempotentAndAppendDests(t *testing.T) {
 	conflict := []core.ShortUrlDest{
 		{Label: "pc", DestUrl: "https://pc-v2.example.com"},
 	}
-	if _, err := AppendShortUrlDests(code1, conflict); err == nil {
+	if _, err := AppendShortUrlDests(code1, conflict, admin); err == nil {
 		t.Fatal("append dests with label conflict should fail")
 	}
 
@@ -81,7 +94,7 @@ func TestGenerateShortUrlIdempotentAndAppendDests(t *testing.T) {
 	more := []core.ShortUrlDest{
 		{Label: "ios", DestUrl: "https://ios.example.com"},
 	}
-	if _, err := AppendShortUrlDests(code1, more); err != nil {
+	if _, err := AppendShortUrlDests(code1, more, admin); err != nil {
 		t.Fatalf("append new label failed: %v", err)
 	}
 
@@ -113,7 +126,7 @@ func TestGenerateShortUrlIdempotentAndAppendDests(t *testing.T) {
 	}
 
 	// 追加到不存在的短码：报错
-	if _, err := AppendShortUrlDests("NONEXIST", dests); err == nil {
+	if _, err := AppendShortUrlDests("NONEXIST", dests, admin); err == nil {
 		t.Error("append dests to nonexistent short url should fail")
 	}
 }

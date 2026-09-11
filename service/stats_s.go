@@ -34,13 +34,23 @@ func GetSumOfUrlStats() (int, core.ShortUrlStats, error) {
 	return totalCount, result, nil
 }
 
-// GetShortUrlStats 获取单个短链接的统计信息
-func GetShortUrlStats(url string) (core.ShortUrlStats, error) {
-	found, err := storage.GetUrlStats(url)
+// GetShortUrlStats 获取单个短链接的统计信息（仅创建者或 admin 可查）
+func GetShortUrlStats(url string, operator core.User) (core.ShortUrlStats, error) {
+	found, err := storage.FindShortUrl(url)
 	if err != nil {
-		return found, utils.RaiseError("内部错误，请联系管理员！")
+		return core.ShortUrlStats{}, utils.RaiseError("内部错误，请联系管理员！")
 	}
-	return found, nil
+	if found.IsEmpty() {
+		return core.ShortUrlStats{}, utils.RaiseError("该短链接不存在")
+	}
+	if err := checkOperator(found, operator); err != nil {
+		return core.ShortUrlStats{}, err
+	}
+	stats, err := storage.GetUrlStats(url)
+	if err != nil {
+		return stats, utils.RaiseError("内部错误，请联系管理员！")
+	}
+	return stats, nil
 }
 
 // GetTop25Url 获取访问量最高的 25 个短链接

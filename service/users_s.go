@@ -96,7 +96,7 @@ func UpdatePassword(account, newPassword string) error {
 	return nil
 }
 
-func NewUser(account, password string) error {
+func NewUser(account, password string, isAdmin bool) error {
 	found, err := GetUserByAccountFromRedis(strings.TrimSpace(account))
 	if err != nil {
 		return err
@@ -106,7 +106,7 @@ func NewUser(account, password string) error {
 		return utils.RaiseError(fmt.Sprintf("用户名 %s 已存在", account))
 	}
 
-	err = storage.NewUser(account, password)
+	err = storage.NewUser(account, password, isAdmin)
 	if err != nil {
 		return err
 	}

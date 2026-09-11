@@ -152,7 +152,7 @@ func ChangeState(c *gin.Context) {
 		return
 	}
 
-	result, er := service.ChangeState(destUrl, destEnable)
+	result, er := service.ChangeState(destUrl, destEnable, currentUser(c))
 	if er != nil {
 		c.JSON(http.StatusInternalServerError, core.ResultJsonError(er.Error()))
 		return
@@ -169,7 +169,7 @@ func DeleteShortUrl(c *gin.Context) {
 		return
 	}
 
-	err := service.DeleteUrlAndAccessLogs(url)
+	err := service.DeleteUrlAndAccessLogs(url, currentUser(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, core.ResultJsonError(err.Error()))
 		return
@@ -193,7 +193,7 @@ func GenerateShortUrl(c *gin.Context) {
 		return
 	}
 
-	result, err := service.GenerateShortUrl(destUrl, memo, openType)
+	result, err := service.GenerateShortUrl(destUrl, memo, openType, currentUser(c))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, core.ResultJsonError(err.Error()))
 		return

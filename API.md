@@ -8,7 +8,14 @@
  Authorization: Bearer {sha256_of_password}
 ```
 
-`sha256_of_password` 的加密规则，与 `storage/users_storage.go` 中的 `PasswordBase58Hash()` 保持同步
+`sha256_of_password` 的加密规则，与 `storage/users_storage.go` 中的 `PasswordBase58Hash()` 保持同步。
+
+**数据归属**：token 对应 `users` 表中的具体用户。短链接记录创建者（`short_urls.created_by`），
+普通用户只能操作（查询/禁用/删除/追加多目标）自己创建的短链接，跨用户操作返回 403；
+`is_admin = true` 的管理员可以操作所有用户创建的短链接。
+
+**用户管理**：`POST /api/account` 与 `PUT /api/account/:account/update` 仅管理员可调用（非管理员返回 403）。
+Web 管理端（`/admin/*`）仅管理员可登录，普通用户登录后跳回 `/login`。
 
 ### 1. 新增短链接 `POST /api/url`
 
@@ -19,7 +26,19 @@
 4. `destinations` 多目标地址列表（JSON 数组），选填，最多 20 个；每个元素包含 `label`（目标标识，最长64字符，唯一）与 `dest_url`（目标链接，最长2048字符）
 5. `short_url` 已有短码，选填：携带时表示向该短链接追加多目标地址（此时 `dest_url` 可省略，仅需 `destinations`）；`label` 已存在时返回 400（禁止覆盖既有目标，防止篡改）；短码不存在返回 400
 
-幂等说明：不携带 `short_url` 时，同一 `dest_url` 重复创建返回已有短码（不报错）；并发创建同一链接由唯一索引兜底，同样返回已有短码。
+幂等说明：不携带 `short_url` 时，同一 `dest_url` 重复创建返回已有短码（不报错）；并发创建同一链接由唯一索引兜底，同样返回已有短码。若该 `dest_url` 已由**其他用户**创建过，则返回 400（防止越权复用他人短链）。
+
+跨用户操作（如修改/删除他人创建的短链接）返回 403：
+
+```shell
+{
+	"code": 403,
+	"status": false,
+	"message": "无权操作该短链接",
+	"result": null,
+	"date": "2026-09-11T10:35:35.049706+08:00"
+}
+```
 
 请求示例：
 
@@ -183,11 +202,14 @@ curl --request GET \
 }
 ```
 
-### 4. 新建管理员 `POST /api/account`
+### 4. 新建用户 `POST /api/account`
+
+仅管理员（`is_admin = true`）可调用，非管理员返回 403。
 
 接受参数：
-1. `account` 管理员帐号，必填
-2. `password` 管理员密码，必填，最小长度8
+1. `account` 用户帐号，必填
+2. `password` 用户密码，必填，最小长度8
+3. `is_admin` 是否管理员，选填，默认 `false`；传 `true` 可创建其他管理员
 
 请求示例：
 
@@ -197,7 +219,8 @@ curl --request POST \
   --header 'Authorization: Bearer EZ2zQjC3fqbkvtggy9p2YaJiLwx1kKPTJxvqVzowtx6t' \
   --header 'Content-Type: application/x-www-form-urlencoded' \
   --data account=hello1 \
-  --data password=12345678
+  --data password=12345678 \
+  --data is_admin=false
 ```
 
 返回结果：
@@ -212,11 +235,13 @@ curl --request POST \
 }
 ```
 
-### 5. 修改管理员密码 `PUT /api/account/:account/update`
+### 5. 修改用户密码 `PUT /api/account/:account/update`
+
+仅管理员（`is_admin = true`）可调用，非管理员返回 403。
 
 接受参数：
-1. `account` path 参数，管理员帐号，必填
-1. `password` 管理员密码，必填，最小长度8
+1. `account` path 参数，用户帐号，必填
+1. `password` 用户密码，必填，最小长度8
 
 请求示例：
 

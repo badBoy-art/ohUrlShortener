@@ -29,13 +29,21 @@ func FindPagedUsers(page, size int) ([]core.User, error) {
 }
 
 // NewUser 新建用户
-func NewUser(account string, password string) error {
-	query := `INSERT INTO public.users (account, "password") VALUES(:account,:password)`
+func NewUser(account string, password string, isAdmin bool) error {
+	query := `INSERT INTO public.users (account, "password", is_admin) VALUES(:account,:password,:is_admin)`
 	data, err := PasswordBase58Hash(password)
 	if err != nil {
 		return err
 	}
-	return DbNamedExec(query, core.User{Account: account, Password: data})
+	return DbNamedExec(query, core.User{Account: account, Password: data, IsAdmin: isAdmin})
+}
+
+// FindUserByPassword 按密码哈希查找用户（API token 即密码哈希）
+func FindUserByPassword(password string) (core.User, error) {
+	var user core.User
+	query := `SELECT * FROM public.users u WHERE u.password = $1`
+	err := DbGet(query, &user, password)
+	return user, err
 }
 
 // UpdateUser 更新用户

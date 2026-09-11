@@ -76,3 +76,14 @@ func ResultJsonUnauthorized(message string) ResultJson {
 		Date:    time.Now(),
 	}
 }
+
+// ResultJsonForbidden 返回无权访问结果
+func ResultJsonForbidden(message string) ResultJson {
+	return ResultJson{
+		Code:    http.StatusForbidden,
+		Message: message,
+		Status:  false,
+		Result:  nil,
+		Date:    time.Now(),
+	}
+}

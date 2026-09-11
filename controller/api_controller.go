@@ -10,6 +10,7 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -25,7 +26,14 @@ import (
 // APINewAdmin
 //
 // Add new admin user
+// 仅 admin 用户可调用；is_admin 参数可创建其他管理员（默认 false）
 func APINewAdmin(ctx *gin.Context) {
+	operator := currentUser(ctx)
+	if !operator.IsAdmin {
+		ctx.JSON(http.StatusForbidden, core.ResultJsonForbidden("无权创建用户"))
+		return
+	}
+
 	account := ctx.PostForm("account")
 	password := ctx.PostForm("password")
 	if utils.EmptyString(account) || utils.EmptyString(password) {
@@ -38,7 +46,9 @@ func APINewAdmin(ctx *gin.Context) {
 		return
 	}
 
-	err := service.NewUser(account, password)
+	isAdmin, _ := strconv.ParseBool(ctx.PostForm("is_admin"))
+
+	err := service.NewUser(account, password, isAdmin)
 
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
@@ -51,7 +61,14 @@ func APINewAdmin(ctx *gin.Context) {
 // APIAdminUpdate
 //
 // Update password of given admin user
+// 仅 admin 用户可调用
 func APIAdminUpdate(ctx *gin.Context) {
+	operator := currentUser(ctx)
+	if !operator.IsAdmin {
+		ctx.JSON(http.StatusForbidden, core.ResultJsonForbidden("无权修改用户"))
+		return
+	}
+
 	account := ctx.Param("account")
 	password := ctx.PostForm("password")
 
@@ -76,6 +93,7 @@ func APIAdminUpdate(ctx *gin.Context) {
 
 // APIGenShortUrl Generate new short url
 func APIGenShortUrl(ctx *gin.Context) {
+	operator := currentUser(ctx)
 	url := strings.TrimSpace(ctx.PostForm("dest_url"))
 	memo := strings.TrimSpace(ctx.PostForm("memo"))
 	strOpenType := ctx.PostForm("open_type")
@@ -93,9 +111,9 @@ func APIGenShortUrl(ctx *gin.Context) {
 	// 携带已有短码：向该短链接追加多目标地址（dest_url 可省略）
 	shortUrl := strings.TrimSpace(ctx.PostForm("short_url"))
 	if !utils.EmptyString(shortUrl) {
-		res, err := service.AppendShortUrlDests(shortUrl, dests)
+		res, err := service.AppendShortUrlDests(shortUrl, dests, operator)
 		if err != nil {
-			ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
+			respondOpError(ctx, err)
 			return
 		}
 		ctx.JSON(http.StatusOK, core.ResultJsonSuccessWithData(map[string]string{
@@ -114,7 +132,7 @@ func APIGenShortUrl(ctx *gin.Context) {
 		return
 	}
 
-	res, err := service.GenerateShortUrlWithDests(url, memo, openType, dests)
+	res, err := service.GenerateShortUrlWithDests(url, memo, openType, dests, operator)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
 		return
@@ -124,6 +142,15 @@ func APIGenShortUrl(ctx *gin.Context) {
 		"short_url": fmt.Sprintf("%s%s", utils.AppConfig.UrlPrefix, res),
 	}
 	ctx.JSON(http.StatusOK, core.ResultJsonSuccessWithData(json))
+}
+
+// respondOpError 统一处理短链接操作错误：无权操作返回 403，其余返回 400
+func respondOpError(ctx *gin.Context, err error) {
+	if errors.Is(err, service.ErrNoPermission) {
+		ctx.JSON(http.StatusForbidden, core.ResultJsonForbidden(err.Error()))
+		return
+	}
+	ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
 }
 
 // parseDestinations 解析多目标地址参数 destinations（JSON 数组形式）
@@ -156,14 +183,19 @@ func parseDestinations(ctx *gin.Context) ([]core.ShortUrlDest, error) {
 
 // APIUrlInfo Get Short Url Stat Info.
 func APIUrlInfo(ctx *gin.Context) {
+	operator := currentUser(ctx)
 	url := ctx.Param("url")
 	if utils.EmptyString(strings.TrimSpace(url)) {
 		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest("url 不能为空"))
 		return
 	}
 
-	stat, err := service.GetShortUrlStats(strings.TrimSpace(url))
+	stat, err := service.GetShortUrlStats(strings.TrimSpace(url), operator)
 	if err != nil {
+		if errors.Is(err, service.ErrNoPermission) {
+			ctx.JSON(http.StatusForbidden, core.ResultJsonForbidden(err.Error()))
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, core.ResultJsonError(err.Error()))
 		return
 	}
@@ -173,6 +205,7 @@ func APIUrlInfo(ctx *gin.Context) {
 
 // APIUpdateUrl Enable or Disable Short Url
 func APIUpdateUrl(ctx *gin.Context) {
+	operator := currentUser(ctx)
 	url := ctx.Param("url")
 	enableStr := ctx.PostForm("enable")
 	if utils.EmptyString(strings.TrimSpace(url)) {
@@ -186,9 +219,9 @@ func APIUpdateUrl(ctx *gin.Context) {
 		return
 	}
 
-	res, err := service.ChangeState(url, enable)
+	res, err := service.ChangeState(url, enable, operator)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
+		respondOpError(ctx, err)
 		return
 	}
 
@@ -197,14 +230,15 @@ func APIUpdateUrl(ctx *gin.Context) {
 
 // APIDeleteUrl Delete Short Url
 func APIDeleteUrl(ctx *gin.Context) {
+	operator := currentUser(ctx)
 	url := ctx.Param("url")
 	if utils.EmptyString(strings.TrimSpace(url)) {
 		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest("url 不能为空"))
 		return
 	}
-	err := service.DeleteUrlAndAccessLogs(url)
+	err := service.DeleteUrlAndAccessLogs(url, operator)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
+		respondOpError(ctx, err)
 		return
 	}
 

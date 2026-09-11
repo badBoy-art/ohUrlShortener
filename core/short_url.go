@@ -82,6 +82,7 @@ type ShortUrl struct {
 	Valid     bool           `db:"is_valid"`
 	Memo      sql.NullString `db:"memo"`
 	OpenType  OpenType       `db:"open_type"`
+	CreatedBy int            `db:"created_by" json:"created_by"`
 	// Dests 多目标地址（label -> dest_url），仅用于管理端展示，不落库
 	Dests map[string]string `db:"-"`
 }
