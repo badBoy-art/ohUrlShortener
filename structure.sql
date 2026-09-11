@@ -179,23 +179,39 @@ BEGIN
 	INSERT INTO public.stats_ip_sum(short_url,today_count,d_today_count,yesterday_count,d_yesterday_count,last_7_days_count,d_last_7_days_count,
 		monthly_count,d_monthly_count,total_count,d_total_count)
 		SELECT
-			u.short_url,				
-			(SELECT count(ip) FROM public.access_logs WHERE date(access_time) = date(NOW()) AND short_url = u.short_url),
-			(SELECT count(DISTINCT(ip)) FROM public.access_logs WHERE date(access_time) = date(NOW()) AND short_url = u.short_url),
-			
-			(SELECT count(ip) FROM public.access_logs WHERE date(access_time) = (NOW() - INTERVAL '1 day')::date AND short_url = u.short_url),
-			(SELECT count(DISTINCT(ip)) FROM public.access_logs WHERE date(access_time) = (NOW() - INTERVAL '1 day')::date AND short_url = u.short_url),
-			
-			(SELECT count(ip) FROM public.access_logs WHERE date(access_time) >= (NOW() - INTERVAL '7 day')::date AND short_url = u.short_url),	
-			(SELECT count(DISTINCT(ip)) FROM public.access_logs WHERE date(access_time) >= (NOW() - INTERVAL '7 day')::date AND short_url = u.short_url),
-			
-			(SELECT count(ip) FROM public.access_logs WHERE DATE_PART('month',access_time) = DATE_PART('month',NOW()) AND short_url = u.short_url),
-			(SELECT count(DISTINCT(ip)) FROM public.access_logs WHERE DATE_PART('month',access_time) = DATE_PART('month',NOW()) AND short_url = u.short_url),
-			
-			(SELECT count(ip) FROM public.access_logs WHERE short_url = u.short_url),
-			(SELECT count(DISTINCT(ip)) FROM public.access_logs WHERE short_url = u.short_url)	
-		FROM public.short_urls u 
-			LEFT JOIN public.access_logs l ON u.short_url = l.short_url
-		GROUP BY u.short_url;
+			u.short_url,
+			COALESCE(g.today_count,0), COALESCE(g.d_today_count,0),
+			COALESCE(g.yesterday_count,0), COALESCE(g.d_yesterday_count,0),
+			COALESCE(g.last_7_days_count,0), COALESCE(g.d_last_7_days_count,0),
+			COALESCE(g.monthly_count,0), COALESCE(g.d_monthly_count,0),
+			COALESCE(g.total_count,0), COALESCE(g.d_total_count,0)
+		FROM public.short_urls u
+			LEFT JOIN (
+				SELECT
+					short_url,
+					SUM(total)      AS total_count,
+					COUNT(*) FILTER (WHERE total > 0)      AS d_total_count,
+					SUM(today)      AS today_count,
+					COUNT(*) FILTER (WHERE today > 0)      AS d_today_count,
+					SUM(yesterday)  AS yesterday_count,
+					COUNT(*) FILTER (WHERE yesterday > 0)  AS d_yesterday_count,
+					SUM(last7)      AS last_7_days_count,
+					COUNT(*) FILTER (WHERE last7 > 0)      AS d_last_7_days_count,
+					SUM(monthly)    AS monthly_count,
+					COUNT(*) FILTER (WHERE monthly > 0)    AS d_monthly_count
+				FROM (
+					SELECT
+						short_url,
+						ip,
+						COUNT(*) AS total,
+						COUNT(*) FILTER (WHERE date(access_time) = date(NOW())) AS today,
+						COUNT(*) FILTER (WHERE date(access_time) = (NOW() - INTERVAL '1 day')::date) AS yesterday,
+						COUNT(*) FILTER (WHERE date(access_time) >= (NOW() - INTERVAL '7 day')::date) AS last7,
+						COUNT(*) FILTER (WHERE DATE_PART('month', access_time) = DATE_PART('month', NOW())) AS monthly
+					FROM public.access_logs
+					GROUP BY short_url, ip
+				) p
+				GROUP BY short_url
+			) g ON g.short_url = u.short_url;
 END;
 $$ LANGUAGE plpgsql;
