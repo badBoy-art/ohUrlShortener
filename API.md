@@ -63,6 +63,18 @@ curl --request POST \
   --data-urlencode 'destinations=[{"label":"tablet","dest_url":"https://pad.example.com"}]'
 ```
 
+`label` 已存在时返回 400，且不修改原有目标地址：
+
+```shell
+{
+	"code": 400,
+	"status": false,
+	"message": "label tablet 已存在，不允许覆盖",
+	"result": null,
+	"date": "2026-09-11T10:35:35.049706+08:00"
+}
+```
+
 返回结果：
 
 ```shell
