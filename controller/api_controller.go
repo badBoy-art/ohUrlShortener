@@ -90,6 +90,20 @@ func APIGenShortUrl(ctx *gin.Context) {
 		return
 	}
 
+	// 携带已有短码：向该短链接追加多目标地址（dest_url 可省略）
+	shortUrl := strings.TrimSpace(ctx.PostForm("short_url"))
+	if !utils.EmptyString(shortUrl) {
+		res, err := service.AppendShortUrlDests(shortUrl, dests)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
+			return
+		}
+		ctx.JSON(http.StatusOK, core.ResultJsonSuccessWithData(map[string]string{
+			"short_url": fmt.Sprintf("%s%s", utils.AppConfig.UrlPrefix, res),
+		}))
+		return
+	}
+
 	// dest_url 未提供时，取第一个目标地址作为主目标（用于生成短码与默认跳转）
 	if utils.EmptyString(url) && len(dests) > 0 {
 		url = dests[0].DestUrl

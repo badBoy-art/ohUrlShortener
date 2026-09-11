@@ -17,6 +17,9 @@
 2. `memo` 备注信息，选填
 3. `open_type` 打开方式（0-8），选填
 4. `destinations` 多目标地址列表（JSON 数组），选填，最多 20 个；每个元素包含 `label`（目标标识，最长64字符，唯一）与 `dest_url`（目标链接，最长2048字符）
+5. `short_url` 已有短码，选填：携带时表示向该短链接追加多目标地址（此时 `dest_url` 可省略，仅需 `destinations`）；`label` 已存在时返回 400（禁止覆盖既有目标，防止篡改）；短码不存在返回 400
+
+幂等说明：不携带 `short_url` 时，同一 `dest_url` 重复创建返回已有短码（不报错）；并发创建同一链接由唯一索引兜底，同样返回已有短码。
 
 请求示例：
 
@@ -48,6 +51,16 @@ curl --request POST \
   --url http://localhost:9092/api/url \
   --header 'Authorization: Bearer EZ2zQjC3fqbkvtggy9p2YaJiLwx1kKPTJxvqVzowtx6t' \
   --data-urlencode 'destinations=[{"label":"pc","dest_url":"https://www.example.com"},{"label":"mobile","dest_url":"https://m.example.com"}]'
+```
+
+向已有短链接追加多目标地址（携带 `short_url`，无需 `dest_url`）：
+
+```shell
+curl --request POST \
+  --url http://localhost:9092/api/url \
+  --header 'Authorization: Bearer EZ2zQjC3fqbkvtggy9p2YaJiLwx1kKPTJxvqVzowtx6t' \
+  --data-urlencode 'short_url=BUUtpbGp' \
+  --data-urlencode 'destinations=[{"label":"tablet","dest_url":"https://pad.example.com"}]'
 ```
 
 返回结果：

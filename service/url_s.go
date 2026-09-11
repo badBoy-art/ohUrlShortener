@@ -163,6 +163,7 @@ func GenerateShortUrl(destUrl string, memo string, openType int) (string, error)
 //
 // 生成短链接；dests 为多目标地址列表（可为空）。
 // 短码基于主目标地址 destUrl 生成，其余目标地址通过 label 选择访问。
+// 同一 destUrl 已生成过短码时幂等返回已有短码；不同 destUrl 哈希碰撞仍报错。
 func GenerateShortUrlWithDests(destUrl string, memo string, openType int, dests []core.ShortUrlDest) (string, error) {
 	shortUrl, err := core.GenerateShortLink(destUrl)
 	if err != nil {
@@ -177,7 +178,11 @@ func GenerateShortUrlWithDests(destUrl string, memo string, openType int, dests 
 	}
 
 	if !foundUrl.IsEmpty() {
-		// Already existed
+		if foundUrl.DestUrl == destUrl {
+			// 同一长链接已生成过短码，幂等返回
+			return shortUrl, nil
+		}
+		// 不同长链接哈希碰撞
 		return shortUrl, utils.RaiseError(fmt.Sprintf("短链接 %s 已存在", shortUrl))
 	}
 
@@ -196,6 +201,10 @@ func GenerateShortUrlWithDests(destUrl string, memo string, openType int, dests 
 	}
 
 	if err := storage.InsertShortUrl(url); err != nil {
+		if storage.IsUniqueViolation(err) {
+			// 并发创建同一长链接，唯一索引兜底，幂等返回
+			return shortUrl, nil
+		}
 		log.Println(err)
 		return "", utils.RaiseError("内部错误，请联系管理员")
 	}
@@ -231,6 +240,61 @@ func destsToMap(dests []core.ShortUrlDest) map[string]string {
 		result[d.Label] = d.DestUrl
 	}
 	return result
+}
+
+// AppendShortUrlDests
+//
+// 向已有短链接追加多目标地址。必须携带已有短码 shortUrl；
+// label 已存在时返回错误（禁止覆盖既有目标，防止篡改），追加成功后重写该短码的 Redis 缓存。
+func AppendShortUrlDests(shortUrl string, dests []core.ShortUrlDest) (string, error) {
+	if len(dests) == 0 {
+		return "", utils.RaiseError("destinations 不能为空")
+	}
+
+	found, err := storage.FindShortUrl(shortUrl)
+	if err != nil {
+		log.Println(err)
+		return "", utils.RaiseError("内部错误，请联系管理员")
+	}
+	if found.IsEmpty() {
+		return "", utils.RaiseError("该短链接不存在")
+	}
+
+	existing, err := loadShortUrlDests(shortUrl)
+	if err != nil {
+		log.Println(err)
+		return "", utils.RaiseError("内部错误，请联系管理员")
+	}
+	for _, d := range dests {
+		if _, ok := existing[d.Label]; ok {
+			return "", utils.RaiseError(fmt.Sprintf("label %s 已存在，不允许覆盖", d.Label))
+		}
+	}
+
+	if err := storage.InsertShortUrlDests(shortUrl, dests); err != nil {
+		if storage.IsUniqueViolation(err) {
+			// 并发追加同 label 时由唯一索引兜底
+			return "", utils.RaiseError("label 已存在，不允许覆盖")
+		}
+		log.Println(err)
+		return "", utils.RaiseError("多目标地址写入失败，请确认已执行 sql/add_short_url_dests.sql 迁移脚本")
+	}
+
+	allDests, err := loadShortUrlDests(shortUrl)
+	if err != nil {
+		log.Println(err)
+	}
+
+	mu := memShortUrl(found.DestUrl, found.OpenType, allDests)
+	res, err := json.Marshal(mu)
+	if err != nil {
+		return "", utils.RaiseError("内部错误，请联系管理员")
+	}
+	if err := storage.RedisSet4Ever(shortUrl, res); err != nil {
+		log.Println(err)
+	}
+
+	return shortUrl, nil
 }
 
 // ChangeState

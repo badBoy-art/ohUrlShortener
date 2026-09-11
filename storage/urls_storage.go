@@ -83,7 +83,7 @@ func FindAllShortUrlDests() ([]core.ShortUrlDest, error) {
 	return found, err
 }
 
-// InsertShortUrlDests 批量插入短链接的多目标地址
+// InsertShortUrlDests 批量插入短链接的多目标地址；label 冲突时由唯一索引 (short_url, label) 报错
 func InsertShortUrlDests(shortUrl string, dests []core.ShortUrlDest) error {
 	for _, d := range dests {
 		d.ShortUrl = shortUrl
@@ -117,6 +117,18 @@ func isRelationNotExist(err error) bool {
 		return pgErr.Code == "42P01"
 	}
 	return strings.Contains(err.Error(), "does not exist")
+}
+
+// IsUniqueViolation 判断是否为 PostgreSQL 唯一约束冲突错误（错误码 23505）
+func IsUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pq.Error
+	if errors.As(err, &pgErr) {
+		return pgErr.Code == "23505"
+	}
+	return strings.Contains(err.Error(), "duplicate key")
 }
 
 // FindAllShortUrls 查找所有短链接
