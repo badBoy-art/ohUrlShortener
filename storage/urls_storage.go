@@ -10,7 +10,6 @@ package storage
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -36,9 +35,10 @@ func DeleteShortUrl(shortUrl core.ShortUrl) error {
 
 // DeleteShortUrlWithAccessLogs 删除短链接以及其访问日志、多目标地址
 func DeleteShortUrlWithAccessLogs(shortUrl core.ShortUrl) error {
-	query1 := fmt.Sprintf(`DELETE from public.short_urls WHERE short_url = '%s'`, shortUrl.ShortUrl)
-	query2 := fmt.Sprintf(`DELETE from public.access_logs WHERE short_url = '%s'`, shortUrl.ShortUrl)
-	if err := DbExecTx(query1, query2); err != nil {
+	if err := DbExecTx(
+		TxStatement{Query: `DELETE from public.short_urls WHERE short_url = $1`, Args: []interface{}{shortUrl.ShortUrl}},
+		TxStatement{Query: `DELETE from public.access_logs WHERE short_url = $1`, Args: []interface{}{shortUrl.ShortUrl}},
+	); err != nil {
 		return err
 	}
 	// 未执行过迁移的老库上没有 short_url_dests 表，此处单独删除并容忍表不存在

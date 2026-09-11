@@ -47,11 +47,17 @@ func DbNamedExec(query string, args interface{}) error {
 	return err
 }
 
-// DbExecTx 执行事务
-func DbExecTx(query ...string) error {
+// TxStatement 事务中的一条参数化语句
+type TxStatement struct {
+	Query string
+	Args  []interface{}
+}
+
+// DbExecTx 在事务中执行多条参数化语句
+func DbExecTx(statements ...TxStatement) error {
 	tx := dbService.Connection.MustBegin()
-	for _, s := range query {
-		tx.MustExec(s)
+	for _, s := range statements {
+		tx.MustExec(s.Query, s.Args...)
 	} // end of for
 	err := tx.Commit()
 	if err != nil {
