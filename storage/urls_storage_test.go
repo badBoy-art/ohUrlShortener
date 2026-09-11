@@ -29,6 +29,41 @@ func TestInsertShortUrls(t *testing.T) {
 	}
 }
 
+func TestFindAllShortUrlsAfterID(t *testing.T) {
+	init4Test(t)
+
+	const pageSize = 100
+
+	var lastID int64
+	var pages int
+	for {
+		urls, err := FindAllShortUrlsAfterID(lastID, pageSize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(urls) == 0 {
+			break
+		}
+		pages++
+		if len(urls) > pageSize {
+			t.Fatalf("page %d returned %d rows, want <= %d", pages, len(urls), pageSize)
+		}
+		for i, u := range urls {
+			if u.ID <= lastID {
+				t.Fatalf("page %d row %d id %d not strictly greater than cursor %d", pages, i, u.ID, lastID)
+			}
+			if i > 0 && u.ID <= urls[i-1].ID {
+				t.Fatalf("page %d ids not strictly ascending: %d after %d", pages, u.ID, urls[i-1].ID)
+			}
+		}
+		lastID = urls[len(urls)-1].ID
+	}
+	if pages == 0 {
+		t.Fatal("expected at least one page of short urls")
+	}
+	t.Logf("walked %d pages up to id %d", pages, lastID)
+}
+
 func TestDeleteShortUrlWithAccessLogs(t *testing.T) {
 
 	init4Test(t)

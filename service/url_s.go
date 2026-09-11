@@ -34,46 +34,48 @@ func ReloadUrls() (bool, error) {
 		log.Println(err)
 	}
 
-	//Get total count to calculate page size
-	count, err := storage.GetUrlCount(0)
-	if err != nil {
-		log.Println(err)
-		return false, utils.RaiseError("内部错误，请联系管理员")
-	}
-
-	if count > 0 {
-		// query for all urls by page
-		totalPageCount := (count / 100) + 1 //100 at a time
-
-		var wg sync.WaitGroup
-		for i := 1; i <= totalPageCount; i++ {
-			urls, err := storage.FindAllShortUrlsByPage(i, 100)
-			if err != nil {
-				log.Println(err)
-				continue
+	// keyset 分页（按 id 升序、游标推进）：加载期间新增的短链接会随游标自然加载，
+	// 避免 OFFSET 分页在表增长时把最老的链接挤出加载窗口
+	const pageSize = 100
+	var wg sync.WaitGroup
+	var lastID int64
+	errCount := 0
+	for {
+		urls, err := storage.FindAllShortUrlsAfterID(lastID, pageSize)
+		if err != nil {
+			log.Println(err)
+			errCount++
+			if errCount >= 3 {
+				return false, err
 			}
-			wg.Add(1)
-			go func(urls []core.ShortUrl) {
-				defer wg.Done()
-				for _, url := range urls {
-					if url.Valid {
-						mu := memShortUrl(url.DestUrl, url.OpenType, destsMap[url.ShortUrl])
-						res, err := json.Marshal(mu)
-						if err != nil {
-							log.Println(err)
-							continue
-						}
-						err = storage.RedisSet4Ever(url.ShortUrl, res)
-						if err != nil {
-							log.Println(err)
-							continue
-						}
-					}
-				} // end of for
-			}(urls)
+			continue
 		}
-		wg.Wait()
+		errCount = 0
+		if len(urls) == 0 {
+			break
+		}
+		lastID = urls[len(urls)-1].ID
+		wg.Add(1)
+		go func(urls []core.ShortUrl) {
+			defer wg.Done()
+			for _, url := range urls {
+				if url.Valid {
+					mu := memShortUrl(url.DestUrl, url.OpenType, destsMap[url.ShortUrl])
+					res, err := json.Marshal(mu)
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					err = storage.RedisSet4Ever(url.ShortUrl, res)
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+				}
+			} // end of for
+		}(urls)
 	}
+	wg.Wait()
 	return true, nil
 }
 

@@ -140,15 +140,13 @@ func FindAllShortUrls() ([]core.ShortUrl, error) {
 	return found, err
 }
 
-// FindAllShortUrls 查找所有短链接
-func FindAllShortUrlsByPage(page, size int) ([]core.ShortUrl, error) {
+// FindAllShortUrlsAfterID 按 id 升序的 keyset 分页查询短链接
+//
+// 游标分页避免 OFFSET 分页在加载期间有并发插入时错位丢行
+func FindAllShortUrlsAfterID(afterID int64, size int) ([]core.ShortUrl, error) {
 	found := []core.ShortUrl{}
-	if page < 0 {
-		return found, nil
-	}
-	offset := (page - 1) * size
-	query := `SELECT * FROM public.short_urls ORDER BY id DESC LIMIT $1 OFFSET $2`
-	err := DbSelect(query, &found, size, offset)
+	query := `SELECT * FROM public.short_urls WHERE id > $1 ORDER BY id ASC LIMIT $2`
+	err := DbSelect(query, &found, afterID, size)
 	return found, err
 }
 
