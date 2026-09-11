@@ -29,12 +29,6 @@ func IsAndroid(ua string) bool {
 	return regex.MatchString(ua)
 }
 
-// IsHarmonyOS 判断是否为华为鸿蒙系统（HarmonyOS 2-4 与 HarmonyOS NEXT 均携带相关标识）
-func IsHarmonyOS(ua string) bool {
-	regex := regexp.MustCompile(`(?i)(HarmonyOS|OpenHarmony)`)
-	return regex.MatchString(ua)
-}
-
 // harmonyDeviceKind 解析鸿蒙 UA 首段的设备形态标识：
 // (Phone; HarmonyOS 5.0) / (Tablet; OpenHarmony 5.0) / (PC; HarmonyOS 5.0)
 func harmonyDeviceKind(ua string) (DeviceTier, bool) {
