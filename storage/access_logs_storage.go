@@ -35,16 +35,13 @@ func InsertAccessLogs(logs []core.AccessLog) error {
 		return nil
 	}
 	query := `INSERT INTO public.access_logs (short_url, access_time, ip, user_agent) VALUES(:short_url,:access_time,:ip,:user_agent)`
-	if len(logs) >= MaxInsertCount {
-		logsSlice := splitLogsArray(logs, MaxInsertCount)
-		for _, slice := range logsSlice {
-			err := DbNamedExec(query, slice)
-			if err != nil {
-				return err
-			}
+	logsSlice := splitLogsArray(logs, MaxInsertCount)
+	for _, slice := range logsSlice {
+		if err := DbNamedExec(query, slice); err != nil {
+			return err
 		}
 	}
-	return DbNamedExec(query, logs)
+	return nil
 }
 
 // FindAccessLogsCount
