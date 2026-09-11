@@ -84,17 +84,19 @@ func FindAccessLogsCount(url string, start, end string, ownerID int) (int, int, 
 
 func FindAllAccessLogs(url string, start, end string, page, size int, ownerID int) ([]core.AccessLog, error) {
 	var (
-		found  []core.AccessLog
-		offset = (page - 1) * size
-		from   = ` FROM public.access_logs l WHERE 1=1 `
-		query  string
-		args   = []interface{}{}
+		found      []core.AccessLog
+		offset     = (page - 1) * size
+		selectCols = `SELECT *`
+		from       = ` FROM public.access_logs l WHERE 1=1 `
+		query      string
+		args       = []interface{}{}
 	)
 
 	if ownerID > 0 {
+		selectCols = `SELECT l.*`
 		from = ` FROM public.access_logs l JOIN public.short_urls u ON l.short_url = u.short_url WHERE 1=1 `
 	}
-	query = `SELECT *` + from
+	query = selectCols + from
 
 	if !utils.EmptyString(url) {
 		query += fmt.Sprintf(` AND l.short_url = $%d`, len(args)+1)
@@ -120,11 +122,13 @@ func FindAllAccessLogs(url string, start, end string, page, size int, ownerID in
 
 func FindAllAccessLogsByUrl(url string, ownerID int) ([]core.AccessLog, error) {
 	found := []core.AccessLog{}
+	selectCols := `SELECT *`
 	from := ` FROM public.access_logs l WHERE 1=1 `
 	if ownerID > 0 {
+		selectCols = `SELECT l.*`
 		from = ` FROM public.access_logs l JOIN public.short_urls u ON l.short_url = u.short_url WHERE 1=1 `
 	}
-	query := `SELECT *` + from
+	query := selectCols + from
 	args := []interface{}{}
 	if !utils.EmptyString(url) {
 		query += fmt.Sprintf(` AND l.short_url = $%d`, len(args)+1)
