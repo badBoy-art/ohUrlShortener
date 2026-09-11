@@ -29,6 +29,43 @@ func IsAndroid(ua string) bool {
 	return regex.MatchString(ua)
 }
 
+// IsHarmonyOS 判断是否为华为鸿蒙系统（HarmonyOS 2-4 与 HarmonyOS NEXT 均携带相关标识）
+func IsHarmonyOS(ua string) bool {
+	regex := regexp.MustCompile(`(?i)(HarmonyOS|OpenHarmony)`)
+	return regex.MatchString(ua)
+}
+
+// harmonyDeviceKind 解析鸿蒙 UA 首段的设备形态标识：
+// (Phone; HarmonyOS 5.0) / (Tablet; OpenHarmony 5.0) / (PC; HarmonyOS 5.0)
+func harmonyDeviceKind(ua string) (DeviceTier, bool) {
+	regex := regexp.MustCompile(`(?i)\((Phone|Tablet|PC)\s*;\s*(?:HarmonyOS|OpenHarmony)[\/ ]?[\d.]+\)`)
+	m := regex.FindStringSubmatch(ua)
+	if len(m) < 2 {
+		return DeviceTierUnknown, false
+	}
+	switch strings.ToLower(m[1]) {
+	case "tablet":
+		return DeviceTierTablet, true
+	case "pc":
+		return DeviceTierPC, true
+	default:
+		return DeviceTierMobile, true
+	}
+}
+
+// androidTablet 判断 Android 系（含 MIUI / 澎湃 HyperOS）平板：
+// 带显式 Tablet/Pad 系列标识，或 Chrome 系 UA 无 Mobile 标记（Android 平板 Chrome 不带 Mobile）
+func androidTablet(ua string) bool {
+	if !IsAndroid(ua) {
+		return false
+	}
+	if regexp.MustCompile(`(?i)\b(Tablet|MediaPad|MIPAD|MI PAD|MatePad)\b`).MatchString(ua) {
+		return true
+	}
+	lower := strings.ToLower(ua)
+	return strings.Contains(lower, "chrome") && !strings.Contains(lower, "mobile")
+}
+
 func IsIPhone(ua string) bool {
 	// 兼容新旧格式：iPhone/12.1（旧）与 iPhone; CPU iPhone OS 17_5（新）
 	regex := regexp.MustCompile(`(?i)iPhone[\/;]`)
@@ -92,7 +129,8 @@ func DeviceTierFromHints(mobileHint, platformHint, modelHint string) DeviceTier 
 		}
 		return DeviceTierMobile
 	case "android":
-		// Android 平板与手机的 UA / Client Hints 均无法区分，平板应用请走 X-Platform 请求头
+		// Client Hints 无法区分 Android 平板与手机（均上报 ?1），
+		// UA 回退时按是否带 Mobile 标记识别平板
 		return DeviceTierMobile
 	case "chrome os", "chromium os", "macos", "windows", "linux":
 		// iPadOS 13+ 桌面模式可能上报 macOS，结合型号再判断一次
@@ -113,6 +151,12 @@ func DeviceTierFromHints(mobileHint, platformHint, modelHint string) DeviceTier 
 // DeviceTierFromUA 根据 User-Agent 正则识别设备类型三档，识别不出时归为 pc
 func DeviceTierFromUA(ua string) DeviceTier {
 	if IsTablet(ua) {
+		return DeviceTierTablet
+	}
+	if tier, ok := harmonyDeviceKind(ua); ok {
+		return tier
+	}
+	if androidTablet(ua) {
 		return DeviceTierTablet
 	}
 	if IsAndroid(ua) || IsIPhone(ua) {
