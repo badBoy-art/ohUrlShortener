@@ -78,12 +78,12 @@ func StoreAccessLogs() error {
 	return nil
 }
 
-// GetPagedAccessLogs 获取分页访问日志
-func GetPagedAccessLogs(url string, start, end string, page, size int) ([]core.AccessLog, error) {
+// GetPagedAccessLogs 获取分页访问日志；admin 返回全部，普通用户仅自己名下短链的日志
+func GetPagedAccessLogs(url string, start, end string, page, size int, operator core.User) ([]core.AccessLog, error) {
 	if page < 1 || size < 1 {
 		return nil, nil
 	}
-	allAccessLogs, err := storage.FindAllAccessLogs(url, start, end, page, size)
+	allAccessLogs, err := storage.FindAllAccessLogs(url, start, end, page, size, ownerFilter(operator))
 	if err != nil {
 		log.Println(err)
 		return allAccessLogs, utils.RaiseError("内部错误，请联系管理员")
@@ -91,14 +91,14 @@ func GetPagedAccessLogs(url string, start, end string, page, size int) ([]core.A
 	return allAccessLogs, nil
 }
 
-// GetAccessLogsCount 获取访问日志总数
-func GetAccessLogsCount(url string, start, end string) (int, int, error) {
-	return storage.FindAccessLogsCount(url, start, end)
+// GetAccessLogsCount 获取访问日志总数；admin 统计全部，普通用户仅自己名下短链的日志
+func GetAccessLogsCount(url string, start, end string, operator core.User) (int, int, error) {
+	return storage.FindAccessLogsCount(url, start, end, ownerFilter(operator))
 }
 
-// GetAllAccessLogs 获取所有访问日志
-func GetAllAccessLogs(url string) ([]core.AccessLog, error) {
-	allAccessLogs, err := storage.FindAllAccessLogsByUrl(url)
+// GetAllAccessLogs 获取所有访问日志；admin 返回全部，普通用户仅自己名下短链的日志
+func GetAllAccessLogs(url string, operator core.User) ([]core.AccessLog, error) {
+	allAccessLogs, err := storage.FindAllAccessLogsByUrl(url, ownerFilter(operator))
 	if err != nil {
 		log.Println(err)
 		return allAccessLogs, utils.RaiseError("内部错误，请联系管理员")

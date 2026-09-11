@@ -181,6 +181,29 @@ func parseDestinations(ctx *gin.Context) ([]core.ShortUrlDest, error) {
 	return dests, nil
 }
 
+// APIUrlsPage 分页查询短链接列表；admin 返回全部，普通用户仅返回自己创建的短链接
+func APIUrlsPage(ctx *gin.Context) {
+	operator := currentUser(ctx)
+	strPage := ctx.DefaultQuery("page", strconv.Itoa(DefaultPageNum))
+	strSize := ctx.DefaultQuery("size", strconv.Itoa(DefaultPageSize))
+	page, err := strconv.Atoi(strPage)
+	if err != nil || page < 1 {
+		page = DefaultPageNum
+	}
+	size, err := strconv.Atoi(strSize)
+	if err != nil || size < 1 {
+		size = DefaultPageSize
+	}
+
+	urls, err := service.GetPagesShortUrls("", page, size, operator)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, core.ResultJsonError(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, core.ResultJsonSuccessWithData(urls))
+}
+
 // APIUrlInfo Get Short Url Stat Info.
 func APIUrlInfo(ctx *gin.Context) {
 	operator := currentUser(ctx)

@@ -121,12 +121,6 @@ func AdminAuthHandler() gin.HandlerFunc {
 			return
 		}
 
-		if !found.IsAdmin {
-			c.Redirect(http.StatusFound, "/login")
-			c.Next()
-			return
-		}
-
 		cValue, err := AdminCookieValue(found)
 		if err != nil {
 			c.Redirect(http.StatusFound, "/login")

@@ -34,7 +34,7 @@ func ReloadUrls() (bool, error) {
 	}
 
 	//Get total count to calculate page size
-	count, err := storage.GetUrlCount()
+	count, err := storage.GetUrlCount(0)
 	if err != nil {
 		log.Println(err)
 		return false, utils.RaiseError("内部错误，请联系管理员")
@@ -111,12 +111,12 @@ func Search4ShortUrl(shortUrl string) (url core.MemShortUrl, err error) {
 
 // GetPagesShortUrls
 //
-// 获取分页的短链接信息
-func GetPagesShortUrls(url string, page int, size int) ([]core.ShortUrl, error) {
+// 获取分页的短链接信息；admin 返回全部，普通用户仅返回自己创建的短链接
+func GetPagesShortUrls(url string, page int, size int, operator core.User) ([]core.ShortUrl, error) {
 	if page < 1 || size < 1 {
 		return nil, nil
 	}
-	allUrls, err := storage.FindPagedShortUrls(url, page, size)
+	allUrls, err := storage.FindPagedShortUrls(url, page, size, ownerFilter(operator))
 	if err != nil {
 		log.Println(err)
 		return allUrls, utils.RaiseError("内部错误，请联系管理员")
@@ -155,6 +155,14 @@ func attachShortUrlDests(urls []core.ShortUrl) error {
 
 // ErrNoPermission 无权操作该短链接（非创建者且非 admin）
 var ErrNoPermission = errors.New("无权操作该短链接")
+
+// ownerFilter 返回归属过滤条件：admin 返回 0（不过滤），普通用户返回自身 ID
+func ownerFilter(operator core.User) int {
+	if operator.IsAdmin {
+		return 0
+	}
+	return operator.ID
+}
 
 // checkOperator 校验操作者权限：admin 放行，否则仅创建者可操作
 func checkOperator(found core.ShortUrl, operator core.User) error {

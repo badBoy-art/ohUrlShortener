@@ -61,7 +61,7 @@ func TestFindAccessLogsCount(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, err := FindAccessLogsCount(tt.args.url, tt.args.start, tt.args.end)
+			got, got1, err := FindAccessLogsCount(tt.args.url, tt.args.start, tt.args.end, 0)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("FindAccessLogsCount() error = %v, wantErr %v", err, tt.wantErr)
 				return

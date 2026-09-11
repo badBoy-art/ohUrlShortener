@@ -36,8 +36,18 @@ func LoginPage(c *gin.Context) {
 	})
 }
 
-// Users Page
+// Users Page 用户管理页面（仅 admin 可访问）
 func UsersPage(c *gin.Context) {
+	if !currentUser(c).IsAdmin {
+		c.HTML(http.StatusForbidden, "error.html", gin.H{
+			"title":   "403 - ohUrlShortener",
+			"code":    http.StatusForbidden,
+			"message": "无权访问该页面",
+			"label":   "Status Forbidden",
+		})
+		return
+	}
+
 	strPage := c.DefaultQuery("page", strconv.Itoa(DefaultPageNum))
 	strSize := c.DefaultQuery("size", strconv.Itoa(DefaultPageSize))
 	page, err := strconv.Atoi(strPage)
@@ -218,7 +228,7 @@ func StatsPage(c *gin.Context) {
 	if err != nil {
 		size = DefaultPageSize
 	}
-	urls, err := service.GetPagedUrlIpCountStats(strings.TrimSpace(url), page, size)
+	urls, err := service.GetPagedUrlIpCountStats(strings.TrimSpace(url), page, size, currentUser(c))
 	c.HTML(http.StatusOK, "stats.html", gin.H{
 		"title":       "数据统计 - ohUrlShortener",
 		"current_url": c.Request.URL.Path,
@@ -246,7 +256,7 @@ func SearchStatsPage(c *gin.Context) {
 	if err != nil {
 		size = DefaultPageSize
 	}
-	urls, err := service.GetPagedUrlIpCountStats(strings.TrimSpace(url), page, size)
+	urls, err := service.GetPagedUrlIpCountStats(strings.TrimSpace(url), page, size, currentUser(c))
 	c.HTML(http.StatusOK, "search_stats.html", gin.H{
 		"title":       "查询统计 - ohUrlShortener",
 		"current_url": c.Request.URL.Path,
@@ -274,7 +284,7 @@ func UrlsPage(c *gin.Context) {
 	if err != nil {
 		size = DefaultPageSize
 	}
-	urls, err := service.GetPagesShortUrls(strings.TrimSpace(url), page, size)
+	urls, err := service.GetPagesShortUrls(strings.TrimSpace(url), page, size, currentUser(c))
 	c.HTML(http.StatusOK, "urls.html", gin.H{
 		"title":       "短链接列表 - ohUrlShortener",
 		"current_url": c.Request.URL.Path,
@@ -305,8 +315,8 @@ func AccessLogsPage(c *gin.Context) {
 		size = DefaultPageSize
 	}
 
-	totalCount, distinctIpCount, err := service.GetAccessLogsCount(strings.TrimSpace(url), start, end)
-	logs, err := service.GetPagedAccessLogs(strings.TrimSpace(url), start, end, page, size)
+	totalCount, distinctIpCount, err := service.GetAccessLogsCount(strings.TrimSpace(url), start, end, currentUser(c))
+	logs, err := service.GetPagedAccessLogs(strings.TrimSpace(url), start, end, page, size, currentUser(c))
 	c.HTML(http.StatusOK, "access_logs.html", gin.H{
 		"title":           "访问日志查询 - ohUrlShortener",
 		"current_url":     c.Request.URL.Path,
@@ -328,7 +338,7 @@ func AccessLogsPage(c *gin.Context) {
 // AccessLogsExport 导出访问日志
 func AccessLogsExport(c *gin.Context) {
 	url := c.PostForm("url")
-	logs, err := service.GetAllAccessLogs(strings.TrimSpace(url))
+	logs, err := service.GetAllAccessLogs(strings.TrimSpace(url), currentUser(c))
 
 	if err != nil {
 		c.HTML(http.StatusOK, "access_logs.html", gin.H{
@@ -361,7 +371,7 @@ func AccessLogsExport(c *gin.Context) {
 
 // DashboardPage 仪表盘页面
 func DashboardPage(c *gin.Context) {
-	count, stats, err := service.GetSumOfUrlStats()
+	count, stats, err := service.GetSumOfUrlStats(currentUser(c))
 	if err != nil {
 		c.HTML(http.StatusOK, "dashboard.html", gin.H{
 			"title":       "仪表盘 - ohUrlShortener",
@@ -371,7 +381,7 @@ func DashboardPage(c *gin.Context) {
 		return
 	}
 
-	top25, er := service.GetTop25Url()
+	top25, er := service.GetTop25Url(currentUser(c))
 	if er != nil {
 		c.HTML(http.StatusOK, "dashboard.html", gin.H{
 			"title":       "仪表盘 - ohUrlShortener",

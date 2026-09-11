@@ -14,19 +14,19 @@ import (
 	"ohurlshortener/utils"
 )
 
-// GetSumOfUrlStats 获取所有短链接的统计信息
-func GetSumOfUrlStats() (int, core.ShortUrlStats, error) {
+// GetSumOfUrlStats 获取所有短链接的统计信息；admin 返回全部，普通用户仅统计自己名下
+func GetSumOfUrlStats(operator core.User) (int, core.ShortUrlStats, error) {
 	var (
 		totalCount int
 		result     core.ShortUrlStats
 	)
 
-	totalCount, err := storage.GetUrlCount()
+	totalCount, err := storage.GetUrlCount(ownerFilter(operator))
 	if err != nil {
 		return totalCount, result, utils.RaiseError("内部错误，请联系管理员！")
 	}
 
-	result, er := storage.GetSumOfUrlStats()
+	result, er := storage.GetSumOfUrlStats(ownerFilter(operator))
 	if er != nil {
 		return totalCount, result, utils.RaiseError("内部错误，请联系管理员！")
 	}
@@ -53,21 +53,21 @@ func GetShortUrlStats(url string, operator core.User) (core.ShortUrlStats, error
 	return stats, nil
 }
 
-// GetTop25Url 获取访问量最高的 25 个短链接
-func GetTop25Url() ([]core.Top25Url, error) {
-	found, err := storage.GetTop25()
+// GetTop25Url 获取访问量最高的 25 个短链接；admin 返回全部，普通用户仅自己名下
+func GetTop25Url(operator core.User) ([]core.Top25Url, error) {
+	found, err := storage.GetTop25(ownerFilter(operator))
 	if err != nil {
 		return found, utils.RaiseError("内部错误，请联系管理员！")
 	}
 	return found, nil
 }
 
-// GetPagedUrlIpCountStats 获取单个短链接的 IP 访问量统计信息
-func GetPagedUrlIpCountStats(url string, page int, size int) ([]core.UrlIpCountStats, error) {
+// GetPagedUrlIpCountStats 获取单个短链接的 IP 访问量统计信息；admin 返回全部，普通用户仅自己名下
+func GetPagedUrlIpCountStats(url string, page int, size int, operator core.User) ([]core.UrlIpCountStats, error) {
 	if page < 1 || size < 1 {
 		return nil, nil
 	}
-	found, err := storage.FindPagedUrlIpCountStats(url, page, size)
+	found, err := storage.FindPagedUrlIpCountStats(url, page, size, ownerFilter(operator))
 	if err != nil {
 		return found, utils.RaiseError("内部错误，请联系管理员！")
 	}

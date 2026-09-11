@@ -10,6 +10,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -152,20 +153,24 @@ func FindAllShortUrlsByPage(page, size int) ([]core.ShortUrl, error) {
 }
 
 // FindPagedShortUrls 分页查找短链接
-func FindPagedShortUrls(url string, page int, size int) ([]core.ShortUrl, error) {
+//
+// ownerID > 0 时仅返回该用户创建的短链接；ownerID = 0 不过滤
+func FindPagedShortUrls(url string, page int, size int, ownerID int) ([]core.ShortUrl, error) {
 	found := []core.ShortUrl{}
 	offset := (page - 1) * size
-	query := "SELECT * FROM public.short_urls u ORDER BY u.id DESC LIMIT $1 OFFSET $2"
+	query := `SELECT * FROM public.short_urls u WHERE 1=1 `
+	args := []interface{}{}
 	if !utils.EmptyString(url) {
-		query := "SELECT * FROM public.short_urls u WHERE u.short_url = $1 ORDER BY u.id DESC LIMIT $2 OFFSET $3"
-		var foundUrl core.ShortUrl
-		err := DbGet(query, &foundUrl, url, size, offset)
-		if !foundUrl.IsEmpty() {
-			found = append(found, foundUrl)
-		}
-		return found, err
+		query += fmt.Sprintf(` AND u.short_url = $%d`, len(args)+1)
+		args = append(args, url)
 	}
-	return found, DbSelect(query, &found, size, offset)
+	if ownerID > 0 {
+		query += fmt.Sprintf(` AND u.created_by = $%d`, len(args)+1)
+		args = append(args, ownerID)
+	}
+	query += fmt.Sprintf(` ORDER BY u.id DESC LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2)
+	args = append(args, size, offset)
+	return found, DbSelect(query, &found, args...)
 }
 
 // InsertShortUrl 插入短链接

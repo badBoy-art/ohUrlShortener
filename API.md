@@ -15,7 +15,7 @@
 `is_admin = true` 的管理员可以操作所有用户创建的短链接。
 
 **用户管理**：`POST /api/account` 与 `PUT /api/account/:account/update` 仅管理员可调用（非管理员返回 403）。
-Web 管理端（`/admin/*`）仅管理员可登录，普通用户登录后跳回 `/login`。
+Web 管理端（`/admin/*`）所有用户均可登录；普通用户仅可见/操作自己创建的短链数据（列表、统计、访问日志、仪表盘均按归属过滤），用户管理页面仅管理员可访问。
 
 ### 1. 新增短链接 `POST /api/url`
 
@@ -202,7 +202,59 @@ curl --request GET \
 }
 ```
 
-### 4. 新建用户 `POST /api/account`
+### 4. 查询短链接列表 `GET /api/urls`
+
+按归属过滤的分页列表：`is_admin = true` 的管理员返回全部短链接；普通用户仅返回自己创建的短链接。
+
+接受参数（均为选填）：
+1. `page` 页码，默认 `1`
+2. `size` 每页条数，默认 `20`
+
+请求示例：
+
+```shell
+curl --request GET \
+  --url 'http://localhost:9092/api/urls?page=1&size=20' \
+  --header 'Authorization: Bearer EZ2zQjC3fqbkvtggy9p2YaJiLwx1kKPTJxvqVzowtx6t'
+```
+
+返回结果（`result` 为短链接数组，含创建者 `created_by` 与多目标地址 `dests`；返回条数小于 `size` 即最后一页）：
+
+```shell
+{
+	"code": 200,
+	"status": true,
+	"message": "success",
+	"result": [
+		{
+			"ID": 120012,
+			"ShortUrl": "33R5QUtD",
+			"DestUrl": "https://www.example.com",
+			"CreatedAt": "2026-09-11T10:00:00+08:00",
+			"Valid": true,
+			"Memo": {
+				"String": "示例链接",
+				"Valid": true
+			},
+			"OpenType": 0,
+			"created_by": 1,
+			"Dests": [
+				{
+					"Label": "pc",
+					"DestUrl": "https://www.example.com"
+				},
+				{
+					"Label": "mobile",
+					"DestUrl": "https://m.example.com"
+				}
+			]
+		}
+	],
+	"date": "2026-09-11T10:35:35.049706+08:00"
+}
+```
+
+### 5. 新建用户 `POST /api/account`
 
 仅管理员（`is_admin = true`）可调用，非管理员返回 403。
 
@@ -235,7 +287,7 @@ curl --request POST \
 }
 ```
 
-### 5. 修改用户密码 `PUT /api/account/:account/update`
+### 6. 修改用户密码 `PUT /api/account/:account/update`
 
 仅管理员（`is_admin = true`）可调用，非管理员返回 403。
 
@@ -265,7 +317,7 @@ curl --request PUT \
 }
 ```
 
-### 6. 删除短链接 `DELETE /api/url/:url`
+### 7. 删除短链接 `DELETE /api/url/:url`
 
 接受参数：
 1. `url` path 参数，要删除的短链接地址

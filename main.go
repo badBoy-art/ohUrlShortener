@@ -256,6 +256,7 @@ func initAdminRoutes() (http.Handler, error) {
 	api.POST("/account", controller.APINewAdmin)
 	api.PUT("/account/:account/update", controller.APIAdminUpdate)
 	api.POST("/url", controller.APIGenShortUrl)
+	api.GET("/urls", controller.APIUrlsPage)
 	api.GET("/url/:url", controller.APIUrlInfo)
 	api.DELETE("/url/:url", controller.APIDeleteUrl)
 	api.PUT("/url/:url/change_state", controller.APIUpdateUrl)

@@ -1,6 +1,8 @@
 package storage
 
 import (
+	"fmt"
+
 	"ohurlshortener/core"
 	"ohurlshortener/utils"
 )
@@ -14,20 +16,41 @@ func GetUrlStats(url string) (core.ShortUrlStats, error) {
 }
 
 // GetUrlCount 获取短链接总数
-func GetUrlCount() (int, error) {
-	var (
-		result int
-		query  = `SELECT count(l.id) FROM public.short_urls l`
-	)
-
-	// query := `SELECT n_live_tup AS estimate_rows FROM pg_stat_all_tables WHERE relname = 'short_urls'`
+//
+// ownerID > 0 时仅统计该用户创建的短链接；ownerID = 0 统计全部
+func GetUrlCount(ownerID int) (int, error) {
+	var result int
+	query := `SELECT count(l.id) FROM public.short_urls l`
+	if ownerID > 0 {
+		query = `SELECT count(l.id) FROM public.short_urls l WHERE l.created_by = $1`
+		return result, DbGet(query, &result, ownerID)
+	}
 	return result, DbGet(query, &result)
 }
 
 // GetSumOfUrlStats 获取所有短链接的访问量统计信息
-func GetSumOfUrlStats() (core.ShortUrlStats, error) {
-	query := `SELECT * FROM public.stats_sum`
+//
+// ownerID > 0 时按归属实时聚合（stats_sum 为全库滚动表，无法过滤）；ownerID = 0 走 stats_sum
+func GetSumOfUrlStats(ownerID int) (core.ShortUrlStats, error) {
 	result := core.ShortUrlStats{}
+	if ownerID > 0 {
+		query := `
+		SELECT
+			COUNT(*) FILTER (WHERE date(l.access_time) = date(NOW())) AS today_count,
+			COUNT(DISTINCT l.ip) FILTER (WHERE date(l.access_time) = date(NOW())) AS d_today_count,
+			COUNT(*) FILTER (WHERE date(l.access_time) = (NOW() - INTERVAL '1 day')::date) AS yesterday_count,
+			COUNT(DISTINCT l.ip) FILTER (WHERE date(l.access_time) = (NOW() - INTERVAL '1 day')::date) AS d_yesterday_count,
+			COUNT(*) FILTER (WHERE date(l.access_time) >= (NOW() - INTERVAL '7 day')::date) AS last_7_days_count,
+			COUNT(DISTINCT l.ip) FILTER (WHERE date(l.access_time) >= (NOW() - INTERVAL '7 day')::date) AS d_last_7_days_count,
+			COUNT(*) FILTER (WHERE DATE_PART('month', l.access_time) = DATE_PART('month', NOW())) AS monthly_count,
+			COUNT(DISTINCT l.ip) FILTER (WHERE DATE_PART('month', l.access_time) = DATE_PART('month', NOW())) AS d_monthly_count
+		FROM public.access_logs l
+		JOIN public.short_urls u ON l.short_url = u.short_url
+		WHERE u.created_by = $1`
+		return result, DbGet(query, &result, ownerID)
+	}
+
+	query := `SELECT * FROM public.stats_sum`
 	data := []core.StatsSum{}
 	err := DbSelect(query, &data)
 	if err != nil {
@@ -57,28 +80,50 @@ func GetSumOfUrlStats() (core.ShortUrlStats, error) {
 }
 
 // GetTop25 获取访问量前 25 的短链接
-func GetTop25() ([]core.Top25Url, error) {
+//
+// ownerID > 0 时仅返回该用户创建的短链接；ownerID = 0 返回全部
+func GetTop25(ownerID int) ([]core.Top25Url, error) {
 	query := `SELECT u.*,s.today_count AS today_count,s.d_today_count AS d_today_count FROM public.short_urls u , public.stats_top25 s WHERE u.short_url = s.short_url`
 	found := []core.Top25Url{}
+	if ownerID > 0 {
+		query = `SELECT u.*,s.today_count AS today_count,s.d_today_count AS d_today_count FROM public.short_urls u , public.stats_top25 s WHERE u.short_url = s.short_url AND u.created_by = $1`
+		return found, DbSelect(query, &found, ownerID)
+	}
 	return found, DbSelect(query, &found)
 }
 
 // FindPagedUrlIpCountStats 获取单个短链接的 IP 访问量统计信息
-func FindPagedUrlIpCountStats(url string, page int, size int) ([]core.UrlIpCountStats, error) {
+//
+// ownerID > 0 时仅返回该用户创建的短链接；ownerID = 0 不过滤
+func FindPagedUrlIpCountStats(url string, page int, size int, ownerID int) ([]core.UrlIpCountStats, error) {
 	found := []core.UrlIpCountStats{}
 	offset := (page - 1) * size
-	query := `SELECT s.*,u.id,u.dest_url,u.created_at,u.is_valid,u.memo FROM public.stats_ip_sum s , public.short_urls u WHERE u.short_url = s.short_url ORDER BY u.created_at DESC LIMIT $1 OFFSET $2`
+	query := `SELECT s.*,u.id,u.dest_url,u.created_at,u.is_valid,u.memo FROM public.stats_ip_sum s , public.short_urls u WHERE u.short_url = s.short_url`
+	args := []interface{}{}
+	if ownerID > 0 {
+		query += fmt.Sprintf(` AND u.created_by = $%d`, len(args)+1)
+		args = append(args, ownerID)
+	}
+	query += fmt.Sprintf(` ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2)
+	args = append(args, size, offset)
 	if !utils.EmptyString(url) {
 		query := `SELECT s.*,u.id,u.dest_url,u.created_at,u.is_valid,u.memo
-		FROM public.stats_ip_sum s , public.short_urls u WHERE u.short_url = s.short_url AND u.short_url = $1 ORDER BY u.created_at DESC LIMIT $2 OFFSET $3`
+		FROM public.stats_ip_sum s , public.short_urls u WHERE u.short_url = s.short_url AND u.short_url = $1`
+		urlArgs := []interface{}{url}
+		if ownerID > 0 {
+			query += fmt.Sprintf(` AND u.created_by = $%d`, len(urlArgs)+1)
+			urlArgs = append(urlArgs, ownerID)
+		}
+		query += fmt.Sprintf(` ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d`, len(urlArgs)+1, len(urlArgs)+2)
+		urlArgs = append(urlArgs, size, offset)
 		var foundUrl core.UrlIpCountStats
-		err := DbGet(query, &foundUrl, url, size, offset)
+		err := DbGet(query, &foundUrl, urlArgs...)
 		if !foundUrl.IsEmpty() {
 			found = append(found, foundUrl)
 		}
 		return found, err
 	}
-	return found, DbSelect(query, &found, size, offset)
+	return found, DbSelect(query, &found, args...)
 }
 
 // CallProcedureStatsIPSum
