@@ -58,17 +58,21 @@ func FindAccessLogsCount(url string, start, end string) (int, int, error) {
 		UniqueIpCount int `db:"unique_ip_count"`
 	}
 	query := `SELECT count(l.id) as total_count, count(distinct(l.ip)) as unique_ip_count FROM public.access_logs l WHERE 1=1 `
+	args := []interface{}{}
 	if !utils.EmptyString(url) {
-		query += fmt.Sprintf(` AND l.short_url = '%s'`, url)
+		query += fmt.Sprintf(` AND l.short_url = $%d`, len(args)+1)
+		args = append(args, url)
 	}
 	if !utils.EmptyString(start) {
-		query += fmt.Sprintf(` AND l.access_time >= to_date('%s','YYYY-MM-DD')`, start)
+		query += fmt.Sprintf(` AND l.access_time >= to_date($%d,'YYYY-MM-DD')`, len(args)+1)
+		args = append(args, start)
 	}
 	if !utils.EmptyString(end) {
-		query += fmt.Sprintf(` AND l.access_time < to_date('%s','YYYY-MM-DD')`, end)
+		query += fmt.Sprintf(` AND l.access_time < to_date($%d,'YYYY-MM-DD')`, len(args)+1)
+		args = append(args, end)
 	}
 	var count LogsCount
-	return count.TotalCount, count.UniqueIpCount, DbGet(query, &count)
+	return count.TotalCount, count.UniqueIpCount, DbGet(query, &count, args...)
 }
 
 func FindAllAccessLogs(url string, start, end string, page, size int) ([]core.AccessLog, error) {
@@ -76,20 +80,25 @@ func FindAllAccessLogs(url string, start, end string, page, size int) ([]core.Ac
 		found  []core.AccessLog
 		offset = (page - 1) * size
 		query  = `SELECT * FROM public.access_logs l WHERE 1=1 `
+		args   = []interface{}{}
 	)
 
 	if !utils.EmptyString(url) {
-		query += fmt.Sprintf(` AND l.short_url = '%s'`, url)
+		query += fmt.Sprintf(` AND l.short_url = $%d`, len(args)+1)
+		args = append(args, url)
 	}
 	if !utils.EmptyString(start) {
-		query += fmt.Sprintf(` AND l.access_time >= to_date('%s','YYYY-MM-DD')`, start)
+		query += fmt.Sprintf(` AND l.access_time >= to_date($%d,'YYYY-MM-DD')`, len(args)+1)
+		args = append(args, start)
 	}
 	if !utils.EmptyString(end) {
-		query += fmt.Sprintf(` AND l.access_time < to_date('%s','YYYY-MM-DD')`, end)
+		query += fmt.Sprintf(` AND l.access_time < to_date($%d,'YYYY-MM-DD')`, len(args)+1)
+		args = append(args, end)
 	}
 
-	query += ` ORDER BY l.id DESC LIMIT $1 OFFSET $2`
-	return found, DbSelect(query, &found, size, offset)
+	query += fmt.Sprintf(` ORDER BY l.id DESC LIMIT $%d OFFSET $%d`, len(args)+1, len(args)+2)
+	args = append(args, size, offset)
+	return found, DbSelect(query, &found, args...)
 }
 
 func FindAllAccessLogsByUrl(url string) ([]core.AccessLog, error) {
