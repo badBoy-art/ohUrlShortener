@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"ohurlshortener/core"
@@ -44,13 +45,16 @@ func ReloadUrls() (bool, error) {
 		// query for all urls by page
 		totalPageCount := (count / 100) + 1 //100 at a time
 
+		var wg sync.WaitGroup
 		for i := 1; i <= totalPageCount; i++ {
 			urls, err := storage.FindAllShortUrlsByPage(i, 100)
 			if err != nil {
 				log.Println(err)
 				continue
 			}
-			go func() {
+			wg.Add(1)
+			go func(urls []core.ShortUrl) {
+				defer wg.Done()
 				for _, url := range urls {
 					if url.Valid {
 						mu := memShortUrl(url.DestUrl, url.OpenType, destsMap[url.ShortUrl])
@@ -66,8 +70,9 @@ func ReloadUrls() (bool, error) {
 						}
 					}
 				} // end of for
-			}()
+			}(urls)
 		}
+		wg.Wait()
 	}
 	return true, nil
 }
