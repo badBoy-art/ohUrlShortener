@@ -1,6 +1,7 @@
 $(document).ready(function() {
 
   $('.ui.dropdown').dropdown();
+  $('.ui.checkbox').checkbox();
 
   $('#login-form')
     .form({
@@ -128,6 +129,31 @@ $(document).ready(function() {
         } 
       });
     });//end of #btn-gen-short-url click
+
+    $('#btn-new-user-modal').click(function(){
+      $('#new-user-result').hide();
+      $('#new-user-form').show();
+      $('#btn-add-user').show();
+      $('#btn-copy-user-token').hide();
+      $('#input_account').val('');
+      $('#input_password').val('');
+      $('#input_is_admin').prop('checked', false);
+      $('#new-user-modal').modal('show');
+    });
+
+    $('#btn-add-user').click(function() {
+      add_user();
+    });
+
+    $('#btn-copy-user-token').click(function() {
+      copy_url($('#result-token').text());
+    });
+
+    $('.btn-user-state').click(function() {
+      var account = $(this).attr('data-account');
+      var enable = $.trim($(this).text()) === '启用';
+      enable_user(account, enable);
+    });
 });
 
 function successToast(message) {
@@ -199,6 +225,84 @@ function copy_url(url){
     message: '复制成功',    
     showIcon:'exclamation circle',
     showProgress: 'bottom'
+  });
+}
+
+function add_user() {
+  var account = $.trim($('#input_account').val());
+  var password = $('#input_password').val();
+  var isAdmin = $('#input_is_admin').is(':checked');
+
+  if (account.length < 5) {
+    errorToast('账号长度不得少于5位！');
+    return;
+  }
+  if (password.length < 8) {
+    errorToast('密码长度不得少于8位！');
+    return;
+  }
+
+  var data = {
+    "account": account,
+    "password": password,
+    "is_admin": isAdmin
+  };
+
+  $.ajax({
+    type: "POST",
+    url: '/admin/users/add',
+    data: data,
+    dataType: 'json',
+    success: function(r) {
+      $('#new-user-form').hide();
+      $('#btn-add-user').hide();
+      $('#result-account').text(r.result.account);
+      $('#result-token').text(r.result.token);
+      $('#new-user-result').show();
+      $('#btn-copy-user-token').show();
+      $('body').toast({
+        class: 'success',
+        displayTime: 2500,
+        message: '新建成功',    
+        showIcon:'exclamation circle',
+        showProgress: 'bottom'
+      });
+    },
+    error: function(e) {
+      errorToast($.parseJSON(e.responseText).message)
+    }
+  });
+}
+
+function enable_user(account, enabled) {
+  if (!enabled) {
+    $('body').modal('confirm','温馨提示','确认停用该用户吗？<br/>停用后该用户将无法登录，已登录的会话与 API Token 也会立即失效。', function(choice){
+      if (choice) {
+        post_user_state(account, enabled);
+      }
+    });
+    return;
+  }
+  post_user_state(account, enabled);
+}
+
+function post_user_state(account, enabled) {
+  var data = {
+    "account": account,
+    "enable": enabled
+  };
+
+  $.ajax({
+    type: "POST",
+    url: '/admin/users/state',
+    data: data,
+    dataType: 'json',
+    success: function() {                              
+      successToast('操作成功')
+    },
+    error: function(e) {          
+      errorToast($.parseJSON(e.responseText).message)
+    } 
   });
 }
 

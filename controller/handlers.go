@@ -121,6 +121,11 @@ func AdminAuthHandler() gin.HandlerFunc {
 			return
 		}
 
+		if !found.Enabled {
+			c.Redirect(http.StatusFound, "/login")
+			return
+		}
+
 		cValue, err := AdminCookieValue(found)
 		if err != nil {
 			c.Redirect(http.StatusFound, "/login")
@@ -167,6 +172,10 @@ func validateToken(token string) (core.User, bool, error) {
 	}
 
 	if user.IsEmpty() {
+		return user, false, nil
+	}
+
+	if !user.Enabled {
 		return user, false, nil
 	}
 

@@ -25,6 +25,10 @@ func Login(account string, pasword string) (core.User, error) {
 		return found, utils.RaiseError("用户名或密码错误")
 	}
 
+	if !found.Enabled {
+		return found, utils.RaiseError("账号已被停用，请联系管理员")
+	}
+
 	res, err := storage.PasswordBase58Hash(pasword)
 	if err != nil {
 		return found, utils.RaiseError("内部错误，请联系管理员")
@@ -128,4 +132,25 @@ func GetPagedUsers(page, size int) ([]core.User, error) {
 		return found, utils.RaiseError("内部错误，请联系管理员!")
 	}
 	return found, nil
+}
+
+// ChangeUserState 启用/停用用户：仅 admin 可调用（控制器守卫），不能停用自己与其他管理员
+func ChangeUserState(account string, enabled bool, operator core.User) error {
+	found, err := GetUserByAccountFromRedis(strings.TrimSpace(account))
+	if err != nil {
+		return err
+	}
+	if found.IsEmpty() {
+		return utils.RaiseError("用户不存在")
+	}
+	if found.ID == operator.ID {
+		return utils.RaiseError("不能停用自己的账号")
+	}
+	if found.IsAdmin {
+		return utils.RaiseError("不能停用管理员账号")
+	}
+	if err := storage.UpdateUserEnable(found.Account, enabled); err != nil {
+		return err
+	}
+	return ReloadUsers()
 }

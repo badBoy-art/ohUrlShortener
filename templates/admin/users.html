@@ -1,0 +1,110 @@
+{{define "users.html" -}}
+{{template "header.html" . -}}
+{{template "sidebar.html" . -}}
+<div class="pusher">
+{{template "admin-left-menu.html" . -}}
+{{template "admin-top-menu.html" . -}}
+<div id="admin-right-content" class="ui basic segment">
+  <div class="ui grid stackable padded">
+    <div class="column">
+      <table class="ui celled striped table">
+        <thead>
+          <tr>
+            <th colspan="6"><button id="btn-new-user-modal" class="ui primary button">新建用户</button></th>
+          </tr>
+          <tr>
+            <th class="center aligned collapsing">ID</th>
+            <th>账号</th>
+            <th class="center aligned collapsing">类型</th>
+            <th class="center aligned collapsing">状态</th>
+            <th class="center aligned collapsing">创建时间</th>
+            <th class="center aligned collapsing">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .users}}
+          <tr {{if not .Enabled}}class="negative"{{end}}>
+            <td class="center aligned collapsing">{{.ID}}</td>
+            <td>{{.Account}}</td>
+            <td class="center aligned">
+              {{if .IsAdmin}}<span class="ui mini teal label">管理员</span>{{else}}<span class="ui mini grey label">普通用户</span>{{end}}
+            </td>
+            <td class="center aligned">
+              {{if .Enabled}}<span class="ui mini green label">启用</span>{{else}}<span class="ui mini red label">停用</span>{{end}}
+            </td>
+            <td class="center aligned collapsing">{{.CreatedAt | date "2006-01-02 15:04:05"}}</td>
+            <td class="center aligned">
+              {{if not .IsAdmin}}
+              {{if .Enabled}}
+              <a href="javascript:void(0)" data-account="{{.Account}}" class="btn-user-state">停用</a>
+              {{else}}
+              <a href="javascript:void(0)" data-account="{{.Account}}" class="btn-user-state">启用</a>
+              {{end}}
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="6" class="center aligned">
+              {{if not .first_page}}
+              <a class="ui small labeled icon button" href="/admin/users?page={{sub .page 1}}"><i class="arrow alternate circle left outline icon"></i>上一页</a>
+              {{end}}
+              {{if not .last_page}}
+              <a class="ui small labeled icon button" href="/admin/users?page={{add .page 1}}"><i class="arrow alternate circle right outline icon"></i>下一页</a>
+              {{end}}
+            </th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div><!--end of grid-->
+</div><!--end of segment-->
+</div><!--end of pusher-->
+<div id="new-user-modal" class="ui modal">
+  <i class="close icon"></i>
+  <div class="header">新建用户</div>
+  <div class="content">
+    <div class="description">
+      <div id="new-user-result" style="display:none;">
+        <div class="ui positive message">
+          <div class="header">用户创建成功</div>
+          <p>账号：<b id="result-account"></b></p>
+          <p>Token：<b id="result-token"></b></p>
+          <p class="ui red text">Token 仅显示一次，请立即复制保存！</p>
+        </div>
+      </div>
+      <div id="new-user-form" class="ui form">
+        <div class="field">
+          <label>账号</label>
+          <input id="input_account" type="text" name="account" placeholder="账号长度不少于5位">
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input id="input_password" type="password" name="password" placeholder="密码长度不少于8位">
+        </div>
+        <div class="field">
+          <div class="ui checkbox">
+            <input type="checkbox" id="input_is_admin" name="is_admin" value="true">
+            <label>设为管理员</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="actions">
+    <div class="ui black deny button">
+      关闭
+    </div>
+    <div id="btn-add-user" class="ui primary right labeled icon button">
+      确认新建
+      <i class="checkmark icon"></i>
+    </div>
+    <div id="btn-copy-user-token" class="ui teal right labeled icon button" style="display:none;">
+      复制 Token
+      <i class="copy icon"></i>
+    </div>
+  </div>
+</div>
+{{end -}}

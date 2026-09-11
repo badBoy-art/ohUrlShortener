@@ -17,6 +17,7 @@ import (
 
 	"ohurlshortener/core"
 	"ohurlshortener/service"
+	"ohurlshortener/storage"
 	"ohurlshortener/utils"
 	"ohurlshortener/utils/export"
 
@@ -28,6 +29,16 @@ const (
 	DefaultPageNum  = 1
 	DefaultPageSize = 20
 )
+
+// pageData 合并管理页公共数据：当前路径（菜单高亮）与是否 admin（菜单显隐）
+func pageData(c *gin.Context, data gin.H) gin.H {
+	if data == nil {
+		data = gin.H{}
+	}
+	data["current_url"] = c.Request.URL.Path
+	data["is_admin"] = currentUser(c).IsAdmin
+	return data
+}
 
 // LoginPage 登录页面
 func LoginPage(c *gin.Context) {
@@ -60,16 +71,70 @@ func UsersPage(c *gin.Context) {
 	}
 
 	found, err := service.GetPagedUsers(page, size)
-	c.HTML(http.StatusOK, "users.html", gin.H{
-		"title":       "用户管理 - ohUrlShortener",
-		"current_url": c.Request.URL.Path,
-		"users":       found,
-		"error":       err,
-		"page":        page,
-		"size":        size,
-		"first_page":  page == 1,
-		"last_page":   len(found) < size,
-	})
+	c.HTML(http.StatusOK, "users.html", pageData(c, gin.H{
+		"title":      "账户管理 - ohUrlShortener",
+		"users":      found,
+		"error":      err,
+		"page":       page,
+		"size":       size,
+		"first_page": page == 1,
+		"last_page":  len(found) < size,
+	}))
+}
+
+// AdminAddUser 新建用户（仅 admin；token 即密码哈希，随响应返回一次）
+func AdminAddUser(c *gin.Context) {
+	if !currentUser(c).IsAdmin {
+		c.JSON(http.StatusForbidden, core.ResultJsonForbidden("无权创建用户"))
+		return
+	}
+
+	account := strings.TrimSpace(c.PostForm("account"))
+	password := c.PostForm("password")
+	if utils.EmptyString(account) || utils.EmptyString(password) || len(account) < 5 || len(password) < 8 {
+		c.JSON(http.StatusBadRequest, core.ResultJsonBadRequest("账号至少5位、密码至少8位"))
+		return
+	}
+
+	isAdmin, _ := strconv.ParseBool(c.PostForm("is_admin"))
+
+	if err := service.NewUser(account, password, isAdmin); err != nil {
+		c.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
+		return
+	}
+
+	token, err := storage.PasswordBase58Hash(password)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, core.ResultJsonError("内部错误，请联系管理员"))
+		return
+	}
+
+	c.JSON(http.StatusOK, core.ResultJsonSuccessWithData(map[string]string{
+		"account": account,
+		"token":   token,
+	}))
+}
+
+// AdminChangeUserState 启用/停用用户（仅 admin；不能停用自己与其他管理员）
+func AdminChangeUserState(c *gin.Context) {
+	if !currentUser(c).IsAdmin {
+		c.JSON(http.StatusForbidden, core.ResultJsonForbidden("无权操作用户"))
+		return
+	}
+
+	account := c.PostForm("account")
+	enable, err := strconv.ParseBool(c.PostForm("enable"))
+	if utils.EmptyString(account) || err != nil {
+		c.JSON(http.StatusBadRequest, core.ResultJsonBadRequest("参数不合法！"))
+		return
+	}
+
+	if err := service.ChangeUserState(account, enable, currentUser(c)); err != nil {
+		c.JSON(http.StatusBadRequest, core.ResultJsonBadRequest(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, core.ResultJsonSuccess())
 }
 
 // DoLogin 登录
@@ -229,18 +294,17 @@ func StatsPage(c *gin.Context) {
 		size = DefaultPageSize
 	}
 	urls, err := service.GetPagedUrlIpCountStats(strings.TrimSpace(url), page, size, currentUser(c))
-	c.HTML(http.StatusOK, "stats.html", gin.H{
-		"title":       "数据统计 - ohUrlShortener",
-		"current_url": c.Request.URL.Path,
-		"error":       err,
-		"shortUrls":   urls,
-		"page":        page,
-		"size":        size,
-		"prefix":      utils.AppConfig.UrlPrefix,
-		"first_page":  page == 1,
-		"last_page":   len(urls) < size,
-		"url":         strings.TrimSpace(url),
-	})
+	c.HTML(http.StatusOK, "stats.html", pageData(c, gin.H{
+		"title":      "数据统计 - ohUrlShortener",
+		"error":      err,
+		"shortUrls":  urls,
+		"page":       page,
+		"size":       size,
+		"prefix":     utils.AppConfig.UrlPrefix,
+		"first_page": page == 1,
+		"last_page":  len(urls) < size,
+		"url":        strings.TrimSpace(url),
+	}))
 }
 
 // SearchStatsPage 查询统计页面
@@ -257,18 +321,17 @@ func SearchStatsPage(c *gin.Context) {
 		size = DefaultPageSize
 	}
 	urls, err := service.GetPagedUrlIpCountStats(strings.TrimSpace(url), page, size, currentUser(c))
-	c.HTML(http.StatusOK, "search_stats.html", gin.H{
-		"title":       "查询统计 - ohUrlShortener",
-		"current_url": c.Request.URL.Path,
-		"error":       err,
-		"shortUrls":   urls,
-		"page":        page,
-		"size":        size,
-		"prefix":      utils.AppConfig.UrlPrefix,
-		"first_page":  page == 1,
-		"last_page":   len(urls) < size,
-		"url":         strings.TrimSpace(url),
-	})
+	c.HTML(http.StatusOK, "search_stats.html", pageData(c, gin.H{
+		"title":      "查询统计 - ohUrlShortener",
+		"error":      err,
+		"shortUrls":  urls,
+		"page":       page,
+		"size":       size,
+		"prefix":     utils.AppConfig.UrlPrefix,
+		"first_page": page == 1,
+		"last_page":  len(urls) < size,
+		"url":        strings.TrimSpace(url),
+	}))
 }
 
 // UrlsPage 短链接列表页面
@@ -285,18 +348,17 @@ func UrlsPage(c *gin.Context) {
 		size = DefaultPageSize
 	}
 	urls, err := service.GetPagesShortUrls(strings.TrimSpace(url), page, size, currentUser(c))
-	c.HTML(http.StatusOK, "urls.html", gin.H{
-		"title":       "短链接列表 - ohUrlShortener",
-		"current_url": c.Request.URL.Path,
-		"error":       err,
-		"shortUrls":   urls,
-		"page":        page,
-		"size":        size,
-		"prefix":      utils.AppConfig.UrlPrefix,
-		"first_page":  page == 1,
-		"last_page":   len(urls) < size,
-		"url":         strings.TrimSpace(url),
-	})
+	c.HTML(http.StatusOK, "urls.html", pageData(c, gin.H{
+		"title":      "短链接列表 - ohUrlShortener",
+		"error":      err,
+		"shortUrls":  urls,
+		"page":       page,
+		"size":       size,
+		"prefix":     utils.AppConfig.UrlPrefix,
+		"first_page": page == 1,
+		"last_page":  len(urls) < size,
+		"url":        strings.TrimSpace(url),
+	}))
 }
 
 // AccessLogsPage 访问日志页面
@@ -317,9 +379,8 @@ func AccessLogsPage(c *gin.Context) {
 
 	totalCount, distinctIpCount, err := service.GetAccessLogsCount(strings.TrimSpace(url), start, end, currentUser(c))
 	logs, err := service.GetPagedAccessLogs(strings.TrimSpace(url), start, end, page, size, currentUser(c))
-	c.HTML(http.StatusOK, "access_logs.html", gin.H{
+	c.HTML(http.StatusOK, "access_logs.html", pageData(c, gin.H{
 		"title":           "访问日志查询 - ohUrlShortener",
-		"current_url":     c.Request.URL.Path,
 		"error":           err,
 		"logs":            logs,
 		"page":            page,
@@ -332,7 +393,7 @@ func AccessLogsPage(c *gin.Context) {
 		"unique_ip_count": distinctIpCount,
 		"start_date":      start,
 		"end_date":        end,
-	})
+	}))
 }
 
 // AccessLogsExport 导出访问日志
@@ -341,25 +402,23 @@ func AccessLogsExport(c *gin.Context) {
 	logs, err := service.GetAllAccessLogs(strings.TrimSpace(url), currentUser(c))
 
 	if err != nil {
-		c.HTML(http.StatusOK, "access_logs.html", gin.H{
-			"title":       "访问日志查询 - ohUrlShortener",
-			"current_url": c.Request.URL.Path,
-			"prefix":      utils.AppConfig.UrlPrefix,
-			"url":         strings.TrimSpace(url),
-			"error":       err,
-		})
+		c.HTML(http.StatusOK, "access_logs.html", pageData(c, gin.H{
+			"title":  "访问日志查询 - ohUrlShortener",
+			"prefix": utils.AppConfig.UrlPrefix,
+			"url":    strings.TrimSpace(url),
+			"error":  err,
+		}))
 		return
 	}
 
 	fileContent, err := export.AccessLogToExcel(logs)
 	if err != nil {
-		c.HTML(http.StatusOK, "access_logs.html", gin.H{
-			"title":       "访问日志查询 - ohUrlShortener",
-			"current_url": c.Request.URL.Path,
-			"prefix":      utils.AppConfig.UrlPrefix,
-			"url":         strings.TrimSpace(url),
-			"error":       err,
-		})
+		c.HTML(http.StatusOK, "access_logs.html", pageData(c, gin.H{
+			"title":  "访问日志查询 - ohUrlShortener",
+			"prefix": utils.AppConfig.UrlPrefix,
+			"url":    strings.TrimSpace(url),
+			"error":  err,
+		}))
 		return
 	}
 
@@ -373,31 +432,28 @@ func AccessLogsExport(c *gin.Context) {
 func DashboardPage(c *gin.Context) {
 	count, stats, err := service.GetSumOfUrlStats(currentUser(c))
 	if err != nil {
-		c.HTML(http.StatusOK, "dashboard.html", gin.H{
-			"title":       "仪表盘 - ohUrlShortener",
-			"current_url": c.Request.URL.Path,
-			"error":       err,
-		})
+		c.HTML(http.StatusOK, "dashboard.html", pageData(c, gin.H{
+			"title": "仪表盘 - ohUrlShortener",
+			"error": err,
+		}))
 		return
 	}
 
 	top25, er := service.GetTop25Url(currentUser(c))
 	if er != nil {
-		c.HTML(http.StatusOK, "dashboard.html", gin.H{
-			"title":       "仪表盘 - ohUrlShortener",
-			"current_url": c.Request.URL.Path,
-			"error":       er,
-		})
+		c.HTML(http.StatusOK, "dashboard.html", pageData(c, gin.H{
+			"title": "仪表盘 - ohUrlShortener",
+			"error": er,
+		}))
 		return
 	}
 
-	c.HTML(http.StatusOK, "dashboard.html", gin.H{
+	c.HTML(http.StatusOK, "dashboard.html", pageData(c, gin.H{
 		"title":       "仪表盘 - ohUrlShortener",
-		"current_url": c.Request.URL.Path,
 		"error":       err,
 		"total_count": count,
 		"prefix":      utils.AppConfig.UrlPrefix,
 		"stats":       stats,
 		"top25":       top25,
-	})
+	}))
 }

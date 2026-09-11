@@ -52,6 +52,15 @@ func UpdateUser(user core.User) error {
 	return DbNamedExec(query, user)
 }
 
+// UpdateUserEnable 启用/停用用户（按账号，大小写不敏感）
+func UpdateUserEnable(account string, enabled bool) error {
+	query := `UPDATE public.users SET is_enable = :is_enable WHERE lower(account) = :account`
+	return DbNamedExec(query, map[string]interface{}{
+		"is_enable": enabled,
+		"account":   strings.ToLower(strings.TrimSpace(account)),
+	})
+}
+
 // FindUserByAccount 根据账号查找用户
 func FindUserByAccount(account string) (core.User, error) {
 	var user core.User

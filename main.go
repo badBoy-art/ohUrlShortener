@@ -251,6 +251,8 @@ func initAdminRoutes() (http.Handler, error) {
 	admin.POST("/urls/delete", controller.DeleteShortUrl)
 	admin.POST("/access_logs_export", controller.AccessLogsExport)
 	admin.GET("/users", controller.UsersPage)
+	admin.POST("/users/add", controller.AdminAddUser)
+	admin.POST("/users/state", controller.AdminChangeUserState)
 
 	api := router.Group("/api", controller.APIAuthHandler())
 	api.POST("/account", controller.APINewAdmin)

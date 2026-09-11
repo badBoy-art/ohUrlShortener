@@ -1,7 +1,9 @@
 package storage
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"ohurlshortener/utils"
 )
@@ -34,6 +36,48 @@ func TestFindUserByPassword(t *testing.T) {
 	}
 	if !user.IsEmpty() {
 		t.Errorf("FindUserByPassword(nonexistent) = %+v, want empty", user)
+	}
+}
+
+func TestUpdateUserEnable(t *testing.T) {
+	init4Test(t)
+
+	account := fmt.Sprintf("testuser_%d", time.Now().UnixNano())
+	if err := NewUser(account, "-2aDzm=0(ln_9^1", false); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = DbNamedExec(`DELETE FROM public.users WHERE account = :account`, map[string]interface{}{"account": account})
+	}()
+
+	found, err := FindUserByAccount(account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found.Enabled {
+		t.Fatalf("new user should be enabled by default, got %+v", found)
+	}
+
+	if err := UpdateUserEnable(account, false); err != nil {
+		t.Fatal(err)
+	}
+	found, err = FindUserByAccount(account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if found.Enabled {
+		t.Errorf("UpdateUserEnable(false) did not disable user: %+v", found)
+	}
+
+	if err := UpdateUserEnable(account, true); err != nil {
+		t.Fatal(err)
+	}
+	found, err = FindUserByAccount(account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !found.Enabled {
+		t.Errorf("UpdateUserEnable(true) did not re-enable user: %+v", found)
 	}
 }
 
